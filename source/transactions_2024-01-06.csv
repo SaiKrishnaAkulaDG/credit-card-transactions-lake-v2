@@ -1,7 +1,0 @@
-transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
-TXN030,2024-01-06,ACC001,PURCHASE,140.00,CARD,Books and media
-TXN031,2024-01-06,ACC002,PAYMENT,800.00,ONLINE,Standard payment
-TXN032,2024-01-06,ACC003,PURCHASE,250.00,CARD,Home goods
-TXN033,2024-01-06,ACC001,REFUND,35.00,CARD,Item return
-TXN034,2024-01-06,ACC004,INTEREST,18.00,SYSTEM,Interest posting
-TXN035,2024-01-06,ACC002,TRANSFER,400.00,ONLINE,Savings transfer

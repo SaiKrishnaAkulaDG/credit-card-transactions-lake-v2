@@ -1,7 +1,0 @@
-transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
-TXN012,2024-01-03,ACC001,PURCHASE,120.00,CARD,Department store
-TXN013,2024-01-03,ACC002,REFUND,45.00,CARD,Merchandise return
-TXN014,2024-01-03,ACC003,PAYMENT,750.00,ONLINE,Regular payment
-TXN015,2024-01-03,ACC001,PURCHASE,60.00,CARD,Restaurant
-TXN016,2024-01-03,ACC002,TRANSFER,500.00,ONLINE,Account transfer
-TXN017,2024-01-03,ACC001,INVALID_CODE,99.99,CARD,Invalid code quarantine

@@ -1,8 +1,0 @@
-transaction_code,description,debit_credit_indicator,transaction_type
-PURCHASE,Purchase transaction,DR,PURCHASE
-PAYMENT,Payment received,CR,PAYMENT
-REFUND,Refund processed,CR,PURCHASE
-INTEREST,Interest charged,DR,INTEREST
-FEE,Service fee,DR,FEE
-TRANSFER,Balance transfer,DR,PURCHASE
-CASH_ADV,Cash advance,DR,PURCHASE
