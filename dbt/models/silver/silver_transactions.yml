@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: silver_transactions
+    description: Silver transactions layer with validation, sign assignment, and account resolvability
+    columns:
+      - name: transaction_id
+        description: Transaction identifier (unique per Silver layer - SIL-T-02)
+        tests:
+          - unique
+      - name: account_id
+        description: Account identifier
+      - name: transaction_date
+        description: Date of transaction
+      - name: amount
+        description: Transaction amount (original unsigned)
+      - name: transaction_code
+        description: Transaction code
+      - name: merchant_name
+        description: Merchant name
+      - name: channel
+        description: Transaction channel (ONLINE or IN_STORE)
+      - name: debit_credit_indicator
+        description: DR (debit) or CR (credit) from reference dataset
+      - name: _signed_amount
+        description: Amount with sign applied (DR=positive, CR=negative) - SIL-T-05
+        tests:
+          - not_null
+      - name: _is_resolvable
+        description: True if account_id exists in Silver Accounts; false if unresolvable (SIL-T-08)
+      - name: _pipeline_run_id
+        description: Pipeline run UUID — audit trail (INV-04)
+        tests:
+          - not_null
+      - name: _bronze_ingested_at
+        description: UTC timestamp when record was ingested into Bronze layer
+      - name: _source_file
+        description: Source CSV filename from Bronze
+      - name: _promoted_at
+        description: UTC timestamp when record was promoted to Silver layer
