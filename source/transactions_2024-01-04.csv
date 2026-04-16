@@ -1,0 +1,7 @@
+transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
+TXN018,2024-01-04,ACC001,PURCHASE,180.00,CARD,Apparel shopping
+TXN019,2024-01-04,ACC002,PURCHASE,65.00,CARD,Pharmacy
+TXN020,2024-01-04,ACC003,PAYMENT,1200.00,ONLINE,Large payment
+TXN021,2024-01-04,ACC001,INTEREST,22.00,SYSTEM,Interest accrual
+TXN022,2024-01-04,ACC002,CASH_ADV,200.00,ATM,Cash withdrawal
+TXN023,2024-01-04,ACC001,PURCHASE,75.00,UNKNOWN_CHANNEL,Invalid channel quarantine

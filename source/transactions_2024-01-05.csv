@@ -1,0 +1,8 @@
+transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
+TXN024,2024-01-05,ACC001,PURCHASE,95.00,CARD,Entertainment
+TXN025,2024-01-05,ACC002,REFUND,50.00,CARD,Return processing
+TXN026,2024-01-05,ACC003,PAYMENT,650.00,ONLINE,Payment received
+TXN027,2024-01-05,ACC001,PURCHASE,110.00,CARD,Hotel booking
+TXN028,2024-01-05,ACC004,TRANSFER,300.00,ONLINE,Inter-account transfer
+TXN001,2024-01-05,ACC001,PURCHASE,88.00,CARD,Duplicate transaction_id quarantine
+TXN029,2024-01-05,ACC_UNKNOWN,PURCHASE,150.00,CARD,Unresolvable account

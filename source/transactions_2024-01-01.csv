@@ -1,0 +1,7 @@
+transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
+TXN001,2024-01-01,ACC001,PURCHASE,150.00,CARD,Online purchase
+TXN002,2024-01-01,ACC001,PURCHASE,75.50,CARD,Gas station
+TXN003,2024-01-01,ACC002,PAYMENT,500.00,ONLINE,Monthly payment
+TXN004,2024-01-01,ACC002,PURCHASE,29.99,CARD,Subscription
+TXN005,2024-01-01,ACC003,TRANSFER,1000.00,ONLINE,Transfer to savings
+,2024-01-01,ACC001,PURCHASE,50.00,CARD,NULL transaction_id quarantine

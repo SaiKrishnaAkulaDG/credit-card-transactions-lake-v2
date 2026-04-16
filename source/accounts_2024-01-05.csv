@@ -1,0 +1,5 @@
+account_id,open_date,credit_limit,current_balance,billing_cycle_start,billing_cycle_end,account_status
+ACC001,2020-06-15,5000.00,3088.00,1,28,ACTIVE
+ACC002,2019-03-22,8000.00,4310.00,5,4,ACTIVE
+ACC003,2021-11-08,10000.00,4390.00,10,9,ACTIVE
+ACC004,2022-01-10,4000.00,1525.00,15,14,CLOSED

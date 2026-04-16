@@ -1,0 +1,7 @@
+transaction_id,transaction_date,account_id,transaction_code,amount,channel,description
+TXN006,2024-01-02,ACC001,PURCHASE,200.00,CARD,Electronics
+TXN007,2024-01-02,ACC001,PAYMENT,1000.00,ONLINE,Bill payment
+TXN008,2024-01-02,ACC002,PURCHASE,85.00,CARD,Groceries
+TXN009,2024-01-02,ACC003,INTEREST,15.50,SYSTEM,Monthly interest
+TXN010,2024-01-02,ACC003,FEE,25.00,SYSTEM,Annual fee
+TXN011,2024-01-02,ACC001,PURCHASE,-50.00,CARD,Negative amount quarantine
