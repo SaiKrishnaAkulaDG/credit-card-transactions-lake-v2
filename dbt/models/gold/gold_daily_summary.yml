@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: gold_daily_summary
+    description: Daily transaction summary - one record per date with total signed amount and transaction count. Includes only resolvable transactions (WHERE _is_resolvable=true).
+    columns:
+      - name: transaction_date
+        description: Transaction date (ISO 8601 format)
+        tests:
+          - not_null
+          - unique  # GOLD-D-01: One record per date
+
+      - name: total_signed_amount
+        description: Sum of signed transaction amounts (DR positive, CR negative) for the day
+        tests:
+          - not_null
+
+      - name: total_transactions
+        description: Count of transactions on this date (resolvable only)
+        tests:
+          - not_null
+
+      - name: _pipeline_run_id
+        description: Pipeline run identifier - tracks data lineage and audit chain (R-04, INV-04)
+        tests:
+          - not_null  # R-04: INV-04 GLOBAL enforcement - every Gold record must carry non-null run ID
