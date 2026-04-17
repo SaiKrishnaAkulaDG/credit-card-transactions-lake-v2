@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: gold_weekly_account_summary
+    description: Weekly account summary - one record per account per ISO week with transaction metrics and closing balance. Includes only resolvable transactions.
+    columns:
+      - name: account_id
+        description: Account identifier
+        tests:
+          - not_null
+
+      - name: week_start_date
+        description: Start date of ISO week (Monday) - computed via date_trunc('week', transaction_date)
+        tests:
+          - not_null
+
+      - name: total_purchases
+        description: Count of purchase transactions in week
+        tests:
+          - not_null
+
+      - name: avg_purchase_amount
+        description: Average signed amount per transaction in week
+        tests:
+          - not_null
+
+      - name: total_payments
+        description: Count of debit (DR) transactions in week
+        tests:
+          - not_null
+
+      - name: total_fees
+        description: Count of fee (FEE) transactions in week
+        tests:
+          - not_null
+
+      - name: total_interest
+        description: Count of interest (INT) transactions in week
+        tests:
+          - not_null
+
+      - name: closing_balance
+        description: Account balance at end of week (from silver_accounts latest record). INNER JOIN ensures non-null (GOLD-W-05).
+        tests:
+          - not_null  # GOLD-W-05: INNER JOIN to silver_accounts guarantees non-null
+
+      - name: _pipeline_run_id
+        description: Pipeline run identifier - tracks data lineage and audit chain (R-04, INV-04)
+        tests:
+          - not_null  # R-04: INV-04 GLOBAL enforcement - every Gold record must carry non-null run ID
+
+    unique_combinations_of_columns:
+      - combination: [account_id, week_start_date]
+        description: One record per account per week (GOLD-W-01)
