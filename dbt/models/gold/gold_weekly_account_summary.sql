@@ -39,7 +39,7 @@ weekly_grouped as (
   select
     account_id,
     date_trunc('week', cast(transaction_date as date)) as week_start_date,
-    date_add(date_trunc('week', cast(transaction_date as date)), interval 6 day) as week_end_date,
+    cast(date_add(date_trunc('week', cast(transaction_date as date)), interval 6 day) as date) as week_end_date,
     sum(case when transaction_type = 'PURCHASE' then 1 else 0 end) as total_purchases,
     avg(case when transaction_type = 'PURCHASE' then _signed_amount else null end) as avg_purchase_amount,
     sum(case when transaction_type = 'PAYMENT' then _signed_amount else 0 end) as total_payments,
