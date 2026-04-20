@@ -22,61 +22,34 @@
 
 with filtered_transactions as (
   select
-    transaction_date,
-    transaction_type,
-    channel,
-    _signed_amount,
-    _pipeline_run_id
-  from read_parquet('/app/silver/transactions/date=*/data.parquet')
-  where _is_resolvable = true
-),
-
-daily_aggregates as (
-  select
-    transaction_date,
-    count(*) as total_transactions,
-    sum(_signed_amount) as total_signed_amount,
-    sum(case when channel = 'ONLINE' then 1 else 0 end) as online_transactions,
-    sum(case when channel = 'IN_STORE' then 1 else 0 end) as instore_transactions,
-    max(_pipeline_run_id) as _pipeline_run_id
-  from filtered_transactions
-  group by transaction_date
-),
-
-transaction_type_breakdown as (
-  select
-    transaction_date,
-    map_agg(
-      transaction_type,
-      struct_pack(
-        count := count(*),
-        total_signed_amount := sum(_signed_amount)
-      )
-    ) as transactions_by_type
-  from filtered_transactions
-  group by transaction_date
+    st.transaction_date,
+    st.channel,
+    st._signed_amount,
+    st._pipeline_run_id,
+    stc.transaction_type
+  from read_parquet('/app/silver/transactions/date=*/data.parquet') st
+  left join read_parquet('/app/silver/transaction_codes/data.parquet') stc
+    on st.transaction_code = stc.transaction_code
+  where st._is_resolvable = true
 )
 
 select
-  da.transaction_date,
-  da.total_transactions,
-  da.total_signed_amount,
-  ttb.transactions_by_type,
-  da.online_transactions,
-  da.instore_transactions,
+  ft.transaction_date,
+  count(*) as total_transactions,
+  sum(ft._signed_amount) as total_signed_amount,
+  map_agg(
+    coalesce(ft.transaction_type, 'UNKNOWN'),
+    struct_pack(
+      count := count(*),
+      total_signed_amount := sum(ft._signed_amount)
+    )
+  ) as transactions_by_type,
+  sum(case when ft.channel = 'ONLINE' then 1 else 0 end) as online_transactions,
+  sum(case when ft.channel = 'IN_STORE' then 1 else 0 end) as instore_transactions,
   current_timestamp as _computed_at,
-  da._pipeline_run_id,
+  max(ft._pipeline_run_id) as _pipeline_run_id,
   min(ft.transaction_date) as _source_period_start,
   max(ft.transaction_date) as _source_period_end
-from daily_aggregates da
-left join transaction_type_breakdown ttb on da.transaction_date = ttb.transaction_date
-cross join filtered_transactions ft
-group by
-  da.transaction_date,
-  da.total_transactions,
-  da.total_signed_amount,
-  ttb.transactions_by_type,
-  da.online_transactions,
-  da.instore_transactions,
-  da._pipeline_run_id
-order by da.transaction_date
+from filtered_transactions ft
+group by ft.transaction_date
+order by ft.transaction_date
