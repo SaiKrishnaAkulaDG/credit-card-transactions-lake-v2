@@ -1,10 +1,26 @@
--- Silver Transactions: Validation, sign assignment, resolvability flagging
--- Excludes quarantine-bound records (those matching rejection rules)
--- _signed_amount: CASE WHEN debit_credit_indicator = 'DR' THEN amount ELSE -amount END
--- _is_resolvable: true if account_id in silver_accounts, false otherwise (SIL-T-08)
--- _promoted_at: timestamp when record was promoted to Silver layer
--- _bronze_ingested_at: timestamp from Bronze ingestion
--- INV-04: _pipeline_run_id is non-null (enforced via schema test)
+-- Silver Transactions: Validated and enriched transaction records from Bronze
+--
+-- PROMOTION LOGIC:
+--   1. Read Bronze transactions for the specified date
+--   2. Exclude records already in quarantine (deduplication guard)
+--   3. Join with Silver Transaction Codes to get debit_credit_indicator
+--   4. Apply sign to amount based on DR (positive) / CR (negative)
+--   5. Flag account_id resolvability against Silver Accounts (unresolved = false, not quarantined)
+--   6. Timestamp promotion with current_timestamp
+--
+-- PARTITIONING: date=YYYY-MM-DD (inherited from Bronze source date)
+-- IDEMPOTENCY: Re-running same date produces identical results (external materialization overwrites)
+-- DEDUPLICATION: transaction_id uniqueness enforced across all partitions (SIL-T-02)
+--
+-- AUDIT COLUMNS:
+--   _signed_amount: Amount with sign (DR=+, CR=-) — used in Gold aggregations
+--   _is_resolvable: False if account_id not in Silver Accounts — excluded from Gold until backfilled
+--   _pipeline_run_id: Execution identifier (INV-04 — non-null, enforced by test)
+--   _bronze_ingested_at: Carried from Bronze ingestion timestamp
+--   _source_file: Carried from Bronze source filename
+--   _promoted_at: UTC timestamp when record entered Silver layer
+--
+-- CONSTRAINTS: SIL-T-02 (unique tx_id), SIL-T-08 (resolvability), INV-04 (non-null run_id)
 
 {{ config(
     materialized='external',
