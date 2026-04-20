@@ -2,47 +2,62 @@ version: 2
 
 models:
   - name: gold_weekly_account_summary
-    description: Weekly account summary - one record per account per ISO week with transaction metrics and closing balance. Includes only resolvable transactions.
+    description: |
+      Gold — Weekly Account Transaction Aggregates. One record per account per calendar week (ISO week, Monday to Sunday).
+      Only includes accounts with at least one resolvable transaction in the week. Aggregates transactions by type:
+      PURCHASE metrics (count & average), and sums for PAYMENT, FEE, and INTEREST type transactions.
+      Includes closing balance from Silver Accounts and computation metadata.
+      Stored at: gold/weekly_account_summary/data.parquet (non-partitioned)
     columns:
+      - name: week_start_date
+        description: Monday of the calendar week (ISO week start)
+        tests:
+          - not_null
+
+      - name: week_end_date
+        description: Sunday of the calendar week (ISO week end)
+        tests:
+          - not_null
+
       - name: account_id
         description: Account identifier
         tests:
           - not_null
 
-      - name: week_start_date
-        description: Start date of ISO week (Monday) - computed via date_trunc('week', transaction_date)
-        tests:
-          - not_null
-
       - name: total_purchases
-        description: Count of purchase transactions in week
+        description: Count of PURCHASE type transactions in the week
         tests:
           - not_null
 
       - name: avg_purchase_amount
-        description: Average signed amount per transaction in week
+        description: Average _signed_amount for PURCHASE type transactions in the week
         tests:
           - not_null
 
       - name: total_payments
-        description: Count of debit (DR) transactions in week
+        description: Sum of _signed_amount for PAYMENT type transactions in the week (DECIMAL)
         tests:
           - not_null
 
       - name: total_fees
-        description: Count of fee (FEE) transactions in week
+        description: Sum of _signed_amount for FEE type transactions in the week (DECIMAL)
         tests:
           - not_null
 
       - name: total_interest
-        description: Count of interest (INT) transactions in week
+        description: Sum of _signed_amount for INTEREST type transactions in the week (DECIMAL)
         tests:
           - not_null
 
       - name: closing_balance
-        description: Account balance at end of week (from silver_accounts latest record). INNER JOIN ensures non-null (GOLD-W-05).
+        description: current_balance from Silver Accounts as of week_end_date (or most recent available). INNER JOIN ensures non-null (GOLD-W-05).
         tests:
           - not_null  # GOLD-W-05: INNER JOIN to silver_accounts guarantees non-null
+
+      - name: _computed_at
+        description: UTC timestamp indicating when this record was last computed/aggregated
+        tests:
+          - not_null
 
       - name: _pipeline_run_id
         description: Pipeline run identifier - tracks data lineage and audit chain (R-04, INV-04)
