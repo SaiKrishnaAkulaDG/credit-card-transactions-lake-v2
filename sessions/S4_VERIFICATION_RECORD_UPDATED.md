@@ -29,13 +29,14 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt run gold_weekly_account_summary succeeds | Parquet created at /app/gold/weekly_summary/data.parquet | ✅ PASS |
-| TC-2 | Weekly grouping via DATE_TRUNC succeeds | One record per account per ISO week | ✅ PASS |
-| TC-3 | CAST(transaction_date AS DATE) required for date_trunc() | Query compiles without type mismatch errors | ✅ PASS |
-| TC-4 | INNER JOIN to silver_accounts enforced | closing_balance non-null (GOLD-W-05) | ✅ PASS |
-| TC-5 | unique(account_id, week_start_date) enforced | SIL-W-01 test passes; no duplicate weeks per account | ✅ PASS |
-| TC-6 | Transaction count metrics correct | total_purchases, total_payments, total_fees, total_interest computed | ✅ PASS |
-| TC-7 | avg_purchase_amount non-null | All rows have non-null avg calculation | ✅ PASS |
+| TC-1 | `dbt run` | Exit 0; gold/weekly_summary/data.parquet created | ✅ PASS |
+| TC-2 | One record per account per week | unique(account_id, week_start_date) passes (GOLD-W-01) | ✅ PASS |
+| TC-3 | closing_balance non-null | not_null(closing_balance) passes (GOLD-W-05) | ✅ PASS |
+| TC-4 | total_purchases correct | COUNT(PURCHASE) matches Silver spot-check | ✅ PASS |
+| TC-5 | avg_purchase_amount correct | AVG of PURCHASE _signed_amount matches Silver | ✅ PASS |
+| TC-6 | _is_resolvable=false excluded | Accounts with _is_resolvable=false absent from weekly | ✅ PASS |
+| TC-7 | _pipeline_run_id non-null | not_null(_pipeline_run_id) dbt test passes (INV-04, R-04) | ✅ PASS |
+| TC-8 | Idempotent rerun | Values identical after second run (INV-01d) | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
