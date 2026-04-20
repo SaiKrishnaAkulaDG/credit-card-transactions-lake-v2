@@ -2,21 +2,43 @@ version: 2
 
 models:
   - name: gold_daily_summary
-    description: Daily transaction summary - one record per date with total signed amount and transaction count. Includes only resolvable transactions (WHERE _is_resolvable=true).
+    description: |
+      Gold Daily Transaction Summary — One aggregated record per calendar day based on transaction_date.
+      Includes only resolvable transactions (WHERE _is_resolvable=true). Provides comprehensive daily metrics
+      including transaction counts, amounts, channel breakdown, and transaction type details.
+      Stored at: gold/daily_summary/data.parquet (non-partitioned)
     columns:
       - name: transaction_date
-        description: Transaction date (ISO 8601 format)
+        description: Calendar day of the transactions (DATE format, ISO 8601)
         tests:
           - not_null
           - unique  # GOLD-D-01: One record per date
 
-      - name: total_signed_amount
-        description: Sum of signed transaction amounts (DR positive, CR negative) for the day
+      - name: total_transactions
+        description: Count of all Silver-layer transactions where _is_resolvable = true for this date
         tests:
           - not_null
 
-      - name: total_transactions
-        description: Count of transactions on this date (resolvable only)
+      - name: total_signed_amount
+        description: Sum of _signed_amount from all resolvable transactions (DR positive, CR negative)
+        tests:
+          - not_null
+
+      - name: transactions_by_type
+        description: STRUCT containing count and total_signed_amount grouped by transaction_type. Enables transaction type analysis per day.
+
+      - name: online_transactions
+        description: Count of transactions conducted via the ONLINE channel for this date
+        tests:
+          - not_null
+
+      - name: instore_transactions
+        description: Count of transactions conducted via the IN_STORE channel for this date
+        tests:
+          - not_null
+
+      - name: _computed_at
+        description: UTC timestamp indicating when the record was last computed/aggregated
         tests:
           - not_null
 
@@ -24,3 +46,13 @@ models:
         description: Pipeline run identifier - tracks data lineage and audit chain (R-04, INV-04)
         tests:
           - not_null  # R-04: INV-04 GLOBAL enforcement - every Gold record must carry non-null run ID
+
+      - name: _source_period_start
+        description: Earliest transaction_date from the source Silver records included in this aggregation
+        tests:
+          - not_null
+
+      - name: _source_period_end
+        description: Latest transaction_date from the source Silver records included in this aggregation
+        tests:
+          - not_null
