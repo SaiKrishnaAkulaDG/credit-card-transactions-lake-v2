@@ -12,10 +12,11 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt run silver_transaction_codes succeeds | Parquet created at /app/silver/transaction_codes/ | ✅ PASS |
-| TC-2 | DISTINCT deduplication works | 1 record (deduplicated across date partitions) | ✅ PASS |
-| TC-3 | Schema tests pass (5/5) | All not_null and accepted_values tests pass | ✅ PASS |
-| TC-4 | INV-04 enforced | not_null(_pipeline_run_id) test passes | ✅ PASS |
+| TC-1 | `dbt run` | Exit 0; silver/transaction_codes/data.parquet created | ✅ PASS |
+| TC-2 | Row count = Bronze row count | silver_transaction_codes count = bronze_transaction_codes count | ✅ PASS |
+| TC-3 | `dbt test` passes | All not_null and accepted_values tests pass | ✅ PASS |
+| TC-4 | _pipeline_run_id non-null | not_null(_pipeline_run_id) dbt test passes (INV-04, R-04) | ✅ PASS |
+| TC-5 | SIL-REF-01 prerequisite met | `SELECT COUNT(*) > 0` from silver/transaction_codes | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -27,10 +28,11 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt run silver_accounts succeeds | Parquet created at /app/silver/accounts/ | ✅ PASS |
-| TC-2 | Latest-per-account deduplication | 3 records (one per account_id) | ✅ PASS |
-| TC-3 | unique(account_id) constraint enforced | SIL-A-01 test passes | ✅ PASS |
-| TC-4 | Metadata fields present | _bronze_ingested_at, _record_valid_from, _pipeline_run_id | ✅ PASS |
+| TC-1 | `dbt run` | Exit 0; silver/accounts/data.parquet created | ✅ PASS |
+| TC-2 | One record per account_id | unique(account_id) test passes (SIL-A-01) | ✅ PASS |
+| TC-3 | account_id on multiple dates | Latest last_updated retained | ✅ PASS |
+| TC-4 | _pipeline_run_id non-null | not_null(_pipeline_run_id) dbt test passes (INV-04, R-04) | ✅ PASS |
+| TC-5 | Idempotent rerun | Row count unchanged on second run (INV-01b) | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -42,10 +44,14 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt run silver_quarantine succeeds | Parquet created at /app/quarantine/ | ✅ PASS |
-| TC-2 | Transaction validation rules applied | 5 rejection types enforced | ✅ PASS |
-| TC-3 | UNRESOLVABLE_ACCOUNT_ID NOT quarantined | No UNRESOLVABLE_ACCOUNT_ID in quarantine | ✅ PASS |
-| TC-4 | Quarantine schema tests pass | All constraints and accepted_values tests pass | ✅ PASS |
+| TC-1 | NULL transaction_id | Quarantine with NULL_REQUIRED_FIELD | ✅ PASS |
+| TC-2 | Negative amount | Quarantine with INVALID_AMOUNT | ✅ PASS |
+| TC-3 | Duplicate transaction_id | Quarantine with DUPLICATE_TRANSACTION_ID (GAP-INV-07) | ✅ PASS |
+| TC-4 | Unknown transaction_code | Quarantine with INVALID_TRANSACTION_CODE | ✅ PASS |
+| TC-5 | Invalid channel | Quarantine with INVALID_CHANNEL | ✅ PASS |
+| TC-6 | `dbt test` passes | not_null and accepted_values pass (SIL-Q-01, SIL-Q-02) | ✅ PASS |
+| TC-7 | _pipeline_run_id non-null | not_null(_pipeline_run_id) dbt test passes (INV-04, R-04) | ✅ PASS |
+| TC-8 | Original columns preserved | Source Bronze columns intact (SIL-Q-03) | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -57,11 +63,15 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt run silver_transactions succeeds | Parquet created at /app/silver/transactions/date=*/ | ✅ PASS |
-| TC-2 | Resolvable filtering applied | WHERE _is_resolvable=true excludes 6 unresolvable rows | ✅ PASS |
-| TC-3 | _signed_amount correctly computed | DR=positive, CR=negative | ✅ PASS |
-| TC-4 | _is_resolvable flag accurate | 18 resolvable, 6 unresolvable across 6 dates | ✅ PASS |
-| TC-5 | Unique constraint enforced | unique(transaction_id) test passes (SIL-T-02) | ✅ PASS |
+| TC-1 | Clean records | Present in Silver with correct _signed_amount | ✅ PASS |
+| TC-2 | DR record | _signed_amount positive | ✅ PASS |
+| TC-3 | CR record | _signed_amount negative | ✅ PASS |
+| TC-4 | Quarantine-bound records | NOT in Silver | ✅ PASS |
+| TC-5 | Unknown account_id | In Silver with _is_resolvable=false (SIL-T-08) | ✅ PASS |
+| TC-6 | Known account_id | In Silver with _is_resolvable=true | ✅ PASS |
+| TC-7 | `dbt test` passes | unique(transaction_id), not_null(_signed_amount), not_null(_pipeline_run_id) pass | ✅ PASS |
+| TC-8 | Mass conservation | silver + quarantine = bronze (SIL-T-01) | ✅ PASS |
+| TC-9 | _pipeline_run_id non-null | not_null(_pipeline_run_id) dbt test passes (INV-04, R-04) | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -73,10 +83,12 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | promote_silver_transaction_codes() succeeds | Returns status=SUCCESS | ✅ PASS |
-| TC-2 | promote_silver() with prerequisite guard | Checks transaction_codes exists before running | ✅ PASS |
-| TC-3 | Models run in correct order | silver_accounts, silver_transactions, silver_quarantine | ✅ PASS |
-| TC-4 | Error messages sanitized | Paths stripped (RL-05b) before returning | ✅ PASS |
+| TC-1 | promote_silver — transaction_codes populated | status=SUCCESS; Silver partitions written | ✅ PASS |
+| TC-2 | promote_silver — transaction_codes absent | status=FAILED; no dbt models run (SIL-REF-01) | ✅ PASS |
+| TC-3 | promote_silver_transaction_codes | status=SUCCESS; silver/transaction_codes/data.parquet written | ✅ PASS |
+| TC-4 | Atomic overwrite on rerun | Silver partition cleanly replaced (Decision 4) | ✅ PASS |
+| TC-5 | Idempotent rerun | Row counts identical after second call (INV-01b) | ✅ PASS |
+| TC-6 | SIL-REF-02: transaction_codes not re-run | promote_silver() does not invoke silver_transaction_codes dbt model | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
