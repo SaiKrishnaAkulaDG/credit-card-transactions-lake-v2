@@ -1,43 +1,142 @@
-#!/bin/bash
-# tools/challenge.sh — PBVI challenge agent runner
-# Invokes Claude Code with task context for manual verification
+#!/usr/bin/env bash
+# challenge.sh — Independent Challenge Agent invocation
+# Usage: ./tools/challenge.sh <session-id> <task-id>
+# Example: ./tools/challenge.sh S02 T-03
+#
+# Invoked by the build agent as step 8 in the per-task execution order.
+# Assembles an evidence-only package and invokes a separate Claude instance.
+# The challenge agent receives NO build session context — only evidence.
 
-set -e
+set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SESSION="${1:?Usage: challenge.sh <session-id> <task-id>}"
+TASK="${2:?Usage: challenge.sh <session-id> <task-id>}"
 
-# Self-test mode: --check
-if [ "$1" = "--check" ]; then
-  echo "Challenge mode self-check..."
-  [ -f "$REPO_ROOT/docs/Claude.md" ] || { echo "ERROR: docs/Claude.md missing"; exit 1; }
-  [ -f "$REPO_ROOT/docs/EXECUTION_PLAN_v1.2.md" ] || { echo "ERROR: EXECUTION_PLAN_v1.2.md missing"; exit 1; }
-  [ -f "$REPO_ROOT/PROJECT_MANIFEST.md" ] || { echo "ERROR: PROJECT_MANIFEST.md missing"; exit 1; }
-  echo "OK: Challenge mode ready"
-  exit 0
+# ── Locate planning artifacts ────────────────────────────────────────────────
+CLAUDE_MD="docs/Claude.md"
+INVARIANTS="docs/INVARIANTS.md"
+
+# Try greenfield path first, then enhancement path
+if [ -f "docs/EXECUTION_PLAN.md" ]; then
+  EXEC_PLAN="docs/EXECUTION_PLAN.md"
+  VR_FILE="sessions/${SESSION}_VERIFICATION_RECORD.md"
+else
+  # Enhancement — find the plan from any matching ENH directory
+  EXEC_PLAN=$(find enhancements -name "*_EXECUTION_PLAN.md" | head -1)
+  VR_FILE=$(find sessions -name "${SESSION}_VERIFICATION_RECORD.md" | head -1)
 fi
 
-# Challenge mode: tools/challenge.sh S[N] TASK_ID
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 --check"
-  echo "       $0 S[N] TASK_ID"
-  exit 1
+for f in "$CLAUDE_MD" "$INVARIANTS" "$EXEC_PLAN"; do
+  if [ ! -f "$f" ]; then
+    echo "CHALLENGE ERROR — required file not found: $f"
+    exit 1
+  fi
+done
+
+# ── Assemble evidence package ────────────────────────────────────────────────
+ESCAPED_TASK=$(echo "$TASK" | sed 's/\./\\./g')
+TASK_SECTION=$(awk "/^### ${ESCAPED_TASK}[^0-9]/,/^### T[0-9]/" "$EXEC_PLAN" \
+  | head -80 || echo "[Task section not found in execution plan]")
+
+CODE_DIFF=$(git diff HEAD 2>/dev/null \
+  || echo "[No prior commit — first task in session]")
+
+VR_SECTION=""
+# NOTE: VR results may be blank at challenge time — the agent writes results
+# at step 4 but challenge runs at step 8. This is expected; the challenge
+# agent assesses the code diff and task spec independently of VR results.
+if [ -f "$VR_FILE" ]; then
+  VR_SECTION=$(awk "/## \[${TASK}/,/### Verification Verdict/" "$VR_FILE" \
+    2>/dev/null | head -60 || echo "[Task not yet in verification record]")
 fi
 
-SESSION="$1"
-TASK_ID="$2"
+# ── Challenge prompt ─────────────────────────────────────────────────────────
+CHALLENGE_PROMPT="You are an independent challenge agent.
 
-echo "=== Challenge Mode: $SESSION Task $TASK_ID ==="
-echo "Collecting context..."
+You have no knowledge of how or why this code was built.
+You did not participate in this build session.
+You see only evidence: the execution contract, the task specification,
+the invariants, the code diff, and the verification record for this task.
 
-# Show relevant documents
-echo ""
-echo "--- EXECUTION_PLAN.md (Task section) ---"
-grep -A 50 "### Task $TASK_ID" "$REPO_ROOT/docs/EXECUTION_PLAN_v1.2.md" 2>/dev/null | head -40 || echo "(task section not found)"
+Your job: identify what is not tested, not covered, or assumed without
+verification — based solely on the evidence below.
 
-# Show recent git diff
-echo ""
-echo "--- Git diff (recent changes) ---"
-git diff HEAD~1 HEAD --stat 2>/dev/null || echo "(no prior commits)"
+Do not explain what the code does.
+Do not summarise the verification record.
+Do not infer intent from the code.
+Surface gaps only. Be specific. Be concise.
 
-echo ""
-echo "=== Ready for engineer challenge findings review ==="
+Only flag findings that are testable within the current task's scope
+using already-modified files. Gaps requiring different sessions, external
+state, or human interaction are recorded as known untested scenarios —
+they are NOT findings that require engineer disposition.
+
+═══════════════════════════════════════════
+EXECUTION CONTRACT (Claude.md):
+$(cat "$CLAUDE_MD")
+
+═══════════════════════════════════════════
+TASK SPECIFICATION (from EXECUTION_PLAN.md):
+${TASK_SECTION}
+
+═══════════════════════════════════════════
+INVARIANTS (INVARIANTS.md):
+$(cat "$INVARIANTS")
+
+═══════════════════════════════════════════
+CODE DIFF (this task only):
+${CODE_DIFF}
+
+═══════════════════════════════════════════
+VERIFICATION RECORD (this task):
+${VR_SECTION}
+
+═══════════════════════════════════════════
+
+Produce output in exactly this structure:
+
+## CC Challenge — ${TASK} — Challenge Agent
+
+**Challenger:** Independent agent — no build session context
+**Session:** ${SESSION}
+
+### Untested Scenarios
+| # | Scenario | Why it matters | Invariant at risk |
+|---|----------|----------------|-------------------|
+| 1 | [gap] | [consequence] | [INV-XX or NONE] |
+
+Write NONE if no untested scenarios identified.
+
+### Unverified Assumptions
+| # | Assumption in code | Basis | Testable within task scope |
+|---|--------------------|-------|---------------------------|
+| 1 | [assumption] | [inferred from code] | YES / NO |
+
+Write NONE if no unverified assumptions identified.
+
+### Invariant Coverage Gaps
+| Invariant | Enforcement point touched | Tested in verification record |
+|-----------|--------------------------|-------------------------------|
+| [INV-XX]  | YES / NO                  | YES / NO                      |
+
+Write NONE if no invariant coverage gaps identified.
+
+### Known Untested Scenarios (out of scope — not findings)
+| Scenario | Reason out of scope |
+|----------|---------------------|
+| [scenario] | [requires different session / external state / human] |
+
+Write NONE if none.
+
+### Challenge Verdict
+
+CLEAN — no in-scope findings requiring engineer disposition.
+  or
+FINDINGS — [N] item(s) require engineer disposition before commit.
+  Finding 1: [specific description]
+  Finding 2: [specific description]
+"
+
+# ── Invoke challenge agent ───────────────────────────────────────────────────
+echo "Running challenge agent for ${SESSION} ${TASK}..."
+claude --print "$CHALLENGE_PROMPT"

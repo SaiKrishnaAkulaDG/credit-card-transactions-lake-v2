@@ -1,48 +1,69 @@
-#!/bin/bash
-# tools/monitor.sh — Session progress monitor
-# Shows current session log status and task completion count
+#!/usr/bin/env bash
+# monitor.sh — Multi-session status dashboard
+# Usage: ./tools/monitor.sh
+# Polls all agent output logs every 10 seconds.
+# Display only — takes no actions.
 
-set -e
+SESSIONS_DIR="sessions"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+watch -n 10 "
+echo 'DG-Forge Agentic Build Monitor'
+echo '================================'
+echo \"\$(date)\"
+echo ''
 
-echo "=== Session Progress Monitor ==="
-echo ""
+found=0
 
-# List all session logs
-echo "--- Session Logs ---"
-for log in "$REPO_ROOT"/sessions/*_SESSION_LOG.md; do
-  if [ -f "$log" ]; then
-    session=$(basename "$log" _SESSION_LOG.md)
-    lines=$(wc -l < "$log")
-    echo "$session: $lines lines"
+# Greenfield sessions
+for log in ${SESSIONS_DIR}/S*_agent_output.log \
+           ${SESSIONS_DIR}/S*_resume_output.log \
+           ${SESSIONS_DIR}/S*_challenge_resume_output.log; do
+  [ -f \"\$log\" ] || continue
+  found=1
+  session=\$(basename \"\$log\" | grep -o 'S[0-9]*')
+  label=\"greenfield \${session}\"
+
+  if grep -q '^  SESSION COMPLETE' \"\$log\" 2>/dev/null; then
+    echo \"✅  \${label} — COMPLETE — sign off SESSION_LOG\"
+  elif grep -q '^  SESSION BLOCKED' \"\$log\" 2>/dev/null; then
+    echo \"⚠️   \${label} — BLOCKED — needs attention\"
+  elif grep -q '^  SCOPE VIOLATION' \"\$log\" 2>/dev/null; then
+    echo \"🚫  \${label} — SCOPE VIOLATION — needs attention\"
+  elif grep -q '^  CHALLENGE FINDINGS' \"\$log\" 2>/dev/null; then
+    echo \"⚠️   \${label} — CHALLENGE FINDINGS — needs disposition\"
+  elif grep -q '^  LAUNCH ERROR' \"\$log\" 2>/dev/null; then
+    echo \"🚫  \${label} — LAUNCH ERROR\"
+  else
+    echo \"🔄  \${label} — running...\"
   fi
 done
 
-echo ""
-echo "--- Verification Records ---"
-for record in "$REPO_ROOT"/sessions/*_VERIFICATION_RECORD.md; do
-  if [ -f "$record" ]; then
-    session=$(basename "$record" _VERIFICATION_RECORD.md)
-    lines=$(wc -l < "$record")
-    echo "$session: $lines lines"
+# Enhancement sessions
+for log in ${SESSIONS_DIR}/SPRINT-*/ENH-*/*_agent_output.log \
+           ${SESSIONS_DIR}/SPRINT-*/ENH-*/*_resume_output.log \
+           ${SESSIONS_DIR}/SPRINT-*/ENH-*/*_challenge_resume_output.log; do
+  [ -f \"\$log\" ] || continue
+  found=1
+  enh=\$(echo \"\$log\" | grep -o 'ENH-[0-9]*')
+  session=\$(basename \"\$log\" | grep -o 'S[0-9]*')
+  label=\"\${enh} \${session}\"
+
+  if grep -q '^  SESSION COMPLETE' \"\$log\" 2>/dev/null; then
+    echo \"✅  \${label} — COMPLETE — sign off SESSION_LOG\"
+  elif grep -q '^  SESSION BLOCKED' \"\$log\" 2>/dev/null; then
+    echo \"⚠️   \${label} — BLOCKED — needs attention\"
+  elif grep -q '^  SCOPE VIOLATION' \"\$log\" 2>/dev/null; then
+    echo \"🚫  \${label} — SCOPE VIOLATION — needs attention\"
+  elif grep -q '^  CHALLENGE FINDINGS' \"\$log\" 2>/dev/null; then
+    echo \"⚠️   \${label} — CHALLENGE FINDINGS — needs disposition\"
+  elif grep -q '^  LAUNCH ERROR' \"\$log\" 2>/dev/null; then
+    echo \"🚫  \${label} — LAUNCH ERROR\"
+  else
+    echo \"🔄  \${label} — running...\"
   fi
 done
 
-echo ""
-echo "--- Repository Status ---"
-echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-echo "Recent commits:"
-git log --oneline | head -5
-
-echo ""
-echo "--- Data Layer Status ---"
-for dir in bronze silver gold quarantine; do
-  if [ -d "$REPO_ROOT/$dir" ]; then
-    count=$(find "$REPO_ROOT/$dir" -name "*.parquet" 2>/dev/null | wc -l)
-    echo "$dir/: $count parquet files"
-  fi
-done
-
-echo ""
-echo "=== End Monitor ==="
+[ \"\$found\" = '0' ] && echo 'No agent output logs found.'
+echo ''
+echo 'Refresh: 10s  |  Ctrl+C to exit'
+"
