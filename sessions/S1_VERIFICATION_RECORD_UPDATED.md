@@ -12,12 +12,17 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | All 17 directories created with .gitkeep | Directories exist, .gitkeep present | ✅ PASS |
-| TC-2 | PROJECT_MANIFEST.md pre-registers all files | All S1-S6 artifacts listed with PENDING status | ✅ PASS |
-| TC-3 | README.md documents entry points | `challenge` and `launch` commands listed | ✅ PASS |
-| TC-4 | METHODOLOGY_VERSION set to PBVI v4.3 | Field present with correct version | ✅ PASS |
+| TC-1 | All PBVI directories present | brief/, docs/, sessions/, verification/, discovery/, enhancements/, tools/ all exist | ✅ PASS |
+| TC-2 | All project source directories present | source/, pipeline/, bronze/, silver/, silver_temp/, gold/, quarantine/, dbt/ all exist | ✅ PASS |
+| TC-3 | README.md at repo root | File present, contains entry point commands | ✅ PASS |
+| TC-4 | PROJECT_MANIFEST.md — METHODOLOGY_VERSION present | `grep "METHODOLOGY_VERSION: PBVI v4.3" PROJECT_MANIFEST.md` matches | ✅ PASS |
+| TC-5 | PROJECT_MANIFEST.md — pipeline modules registered | All 7 pipeline .py files listed with PENDING status | ✅ PASS |
+| TC-6 | PROJECT_MANIFEST.md — tools/ scripts registered | All 5 tools/ scripts listed with PENDING status | ✅ PASS |
+| TC-7 | PROJECT_MANIFEST.md — Non-Standard Directories registered | source/, pipeline/, bronze/, silver/, silver_temp/, gold/, quarantine/, dbt/ all listed | ✅ PASS |
+| TC-8 | docs/ contains planning artifacts | ARCHITECTURE.md, INVARIANTS.md, EXECUTION_PLAN.md, PHASE4_GATE_RECORD.md all present | ✅ PASS |
+| TC-9 | Git repo initialised with initial commit | `git log --oneline` shows exactly one commit | ✅ PASS |
 
-### Challenge Agent Output
+**Challenge Agent Output**
 **Verdict:** CLEAN
 
 ---
@@ -28,13 +33,14 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | Docker image builds | `docker compose build` exits 0 | ✅ PASS |
-| TC-2 | Python dependencies installed | dbt, duckdb, pyarrow, pandas importable | ✅ PASS |
-| TC-3 | Protobuf compatibility fixed | dbt debug completes without error | ✅ PASS |
-| TC-4 | Mount parity enforced | silver/ and silver_temp/ on same filesystem | ✅ PASS |
-| TC-5 | source/ mounted read-only | Write attempts to /app/source fail | ✅ PASS |
+| TC-1 | `docker compose build` | Exit 0, no errors | ✅ PASS |
+| TC-2 | Python deps importable | `import duckdb; import pyarrow; import pandas` exits 0 | ✅ PASS |
+| TC-3 | dbt version correct | `dbt --version` reports 1.7.x | ✅ PASS |
+| TC-4 | source/ mounted read-only | Write attempt to /app/source raises PermissionError | ✅ PASS |
+| TC-5 | silver/ and silver_temp/ rename works | `os.rename('/app/silver_temp/probe', '/app/silver/probe')` exits 0 | ✅ PASS |
+| TC-6 | .gitignore excludes runtime Parquet | `git status` shows no untracked .parquet files after build | ✅ PASS |
 
-### Challenge Agent Output
+**Challenge Agent Output**
 **Verdict:** CLEAN (after protobuf fix in revert+recommit)
 
 **Critical finding resolved:**
@@ -50,11 +56,12 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | dbt project configured | dbt_project.yml present with correct settings | ✅ PASS |
-| TC-2 | DuckDB profile valid | dbt debug passes with "All checks passed!" | ✅ PASS |
-| TC-3 | Model directories created | dbt/models/silver/.gitkeep and dbt/models/gold/.gitkeep present | ✅ PASS |
+| TC-1 | `dbt debug` inside container | Exit 0, "All checks passed" | ✅ PASS |
+| TC-2 | Profile name correct | `grep "credit_card_transactions_lake" dbt/profiles.yml` matches | ✅ PASS |
+| TC-3 | DuckDB path correct | `grep "/app/pipeline/dbt_catalog.duckdb" dbt/profiles.yml` matches | ✅ PASS |
+| TC-4 | Model directories exist | `ls dbt/models/silver dbt/models/gold` exits 0 | ✅ PASS |
 
-### Challenge Agent Output
+**Challenge Agent Output**
 **Verdict:** CLEAN
 
 ---
@@ -65,28 +72,26 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | All 6 transaction files present | transactions_2024-01-01.csv through 2024-01-06.csv | ✅ PASS |
-| TC-2 | All 6 accounts files present | accounts_2024-01-01.csv through 2024-01-06.csv | ✅ PASS |
-| TC-3 | transaction_codes.csv present | Reference table with 5 columns | ✅ PASS |
-| TC-4 | CSV schema matches actual files | Columns match user-provided schema, not EXECUTION_PLAN spec | ✅ PASS |
-| TC-5 | No file for 2024-01-07 | Missing date tests no-op path correctly | ✅ PASS |
+| TC-1 | 6 transaction files present | transactions_2024-01-01.csv through transactions_2024-01-06.csv | ✅ PASS |
+| TC-2 | No file for 2024-01-07 | `ls source/transactions_2024-01-07.csv` → not found | ✅ PASS |
+| TC-3 | transaction_codes.csv present | File exists with DR and CR indicators | ✅ PASS |
+| TC-4 | All quarantine scenarios represented | NULL, negative amount, duplicate, invalid code, invalid channel all in seed data | ✅ PASS |
 
-### Challenge Agent Output
+**Challenge Agent Output**
 **Verdict:** CLEAN
 
 ---
 
-## Task 1.5 — tools/ Scripts and Permissions
+## Task 1.5 — tools/ Agentic Build Scripts
 
 ### Test Cases Applied
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | All scripts executable | chmod +x applied and preserved in git | ✅ PASS |
-| TC-2 | Shebang headers present | #!/bin/bash at top of each script | ✅ PASS |
-| TC-3 | challenge.sh --check works | Script runs without "Permission denied" | ✅ PASS |
+| TC-1 | `./tools/challenge.sh --check` | Exit 0 | ✅ PASS |
+| TC-2 | All 5 scripts executable | `ls -la tools/*.sh` shows x permission for all | ✅ PASS |
 
-### Challenge Agent Output
+**Challenge Agent Output**
 **Verdict:** CLEAN
 
 ---
