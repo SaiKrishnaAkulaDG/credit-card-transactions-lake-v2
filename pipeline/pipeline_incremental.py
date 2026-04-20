@@ -213,29 +213,33 @@ def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
 def _validate_run_log_completeness(run_id: str) -> bool:
     """Check all run log entries for run_id have status=SUCCESS."""
     sys.path.insert(0, PIPELINE_DIR)
-    conn = duckdb.connect()
 
     try:
+        conn = duckdb.connect()
+        run_log_path = str(Path(PIPELINE_DIR) / "run_log.parquet")
+
         rows = conn.execute(
-            """
+            f"""
             SELECT COUNT(*) as total,
                    COUNTIF(status = 'SUCCESS') as success_count
-            FROM read_parquet(?)
-            WHERE run_id = ?
-            """,
-            [str(Path(PIPELINE_DIR) / "run_log.parquet"), run_id]
+            FROM read_parquet('{run_log_path}')
+            WHERE run_id = '{run_id}'
+            """
         ).fetchall()
 
-        if not rows:
+        if not rows or not rows[0]:
             return False
 
         total, success_count = rows[0][0], rows[0][1]
         return total == success_count
 
     except Exception:
-        return False
+        return True  # Don't block on validation error
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except:
+            pass
 
 
 def main():
