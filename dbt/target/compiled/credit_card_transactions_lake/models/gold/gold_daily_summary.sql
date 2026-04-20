@@ -34,6 +34,13 @@ select
   sum(ft._signed_amount) as total_signed_amount,
   sum(case when ft.channel = 'ONLINE' then 1 else 0 end) as online_transactions,
   sum(case when ft.channel = 'IN_STORE' then 1 else 0 end) as instore_transactions,
+  json_object(
+    'PURCHASE', json_object('count', sum(case when ft.transaction_type = 'PURCHASE' then 1 else 0 end), 'sum', sum(case when ft.transaction_type = 'PURCHASE' then ft._signed_amount else 0 end)),
+    'PAYMENT', json_object('count', sum(case when ft.transaction_type = 'PAYMENT' then 1 else 0 end), 'sum', sum(case when ft.transaction_type = 'PAYMENT' then ft._signed_amount else 0 end)),
+    'FEE', json_object('count', sum(case when ft.transaction_type = 'FEE' then 1 else 0 end), 'sum', sum(case when ft.transaction_type = 'FEE' then ft._signed_amount else 0 end)),
+    'INTEREST', json_object('count', sum(case when ft.transaction_type = 'INTEREST' then 1 else 0 end), 'sum', sum(case when ft.transaction_type = 'INTEREST' then ft._signed_amount else 0 end)),
+    'REFUND', json_object('count', sum(case when ft.transaction_type = 'REFUND' then 1 else 0 end), 'sum', sum(case when ft.transaction_type = 'REFUND' then ft._signed_amount else 0 end))
+  ) as transactions_by_type,
   current_timestamp as _computed_at,
   max(ft._pipeline_run_id) as _pipeline_run_id,
   min(ft.transaction_date) as _source_period_start,

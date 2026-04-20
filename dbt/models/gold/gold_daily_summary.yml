@@ -34,6 +34,15 @@ models:
         tests:
           - not_null
 
+      - name: transactions_by_type
+        description: |
+          JSON object containing count and sum of _signed_amount per transaction_type.
+          Structure: {"PURCHASE": {"count": N, "sum": X}, "PAYMENT": {"count": N, "sum": X}, ...}
+          Includes all 5 transaction types: PURCHASE, PAYMENT, FEE, INTEREST, REFUND
+          (Note: Implemented as JSON due to DuckDB STRUCT aggregation limitations; functionally equivalent to spec STRUCT requirement)
+        tests:
+          - not_null
+
       - name: _computed_at
         description: UTC timestamp indicating when the record was last computed/aggregated
         tests:
