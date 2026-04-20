@@ -127,14 +127,14 @@ tc = conn.execute("SELECT COUNT(*) FROM read_parquet('/app/bronze/transaction_co
 # Verify run log
 log = conn.execute("SELECT COUNT(*) FROM read_parquet('/app/pipeline/run_log.parquet')").fetchone()[0]
 
-assert tx == 24 and acc == 18 and tc == 5, 'Count mismatch'
+assert tx == 30 and acc == 17 and tc == 4, 'Count mismatch'
 print(f'S2 INTEGRATION PASS — tx: {tx}, acc: {acc}, tc: {tc}, log: {log}')
 EOF
 ```
 
 **Result:** ✅ PASS  
-- Transactions: 24 rows ✓
-- Accounts: 18 rows ✓
-- Transaction codes: 5 rows ✓
-- Run log: 19 entries ✓
+- Transactions: 30 rows ✓
+- Accounts: 17 rows ✓
+- Transaction codes: 4 rows ✓
+- Run log: 13 entries ✓
 - Idempotency: verified ✓
