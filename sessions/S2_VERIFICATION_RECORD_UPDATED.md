@@ -30,11 +30,16 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | CSV schema validation passes | Columns match user-provided schema | ✅ PASS |
-| TC-2 | Idempotency check (Decision 3) | Rerun returns SUCCESS without rewrite | ✅ PASS |
-| TC-3 | Audit columns added (INV-04, INV-08) | _pipeline_run_id, _ingested_at, _source_file non-null | ✅ PASS |
-| TC-4 | All 6 dates ingested successfully | Partitions created at bronze/{entity}/date=YYYY-MM-DD/ | ✅ PASS |
-| TC-5 | Missing date returns SKIPPED | 2024-01-07 (no CSV) returns SKIPPED status | ✅ PASS |
+| TC-1 | Clean CSV — first ingestion | status=SUCCESS; Parquet at correct path; row count matches source | ✅ PASS |
+| TC-2 | Rerun same CSV (idempotent) | status=SUCCESS; no rewrite; row count unchanged (INV-01a) | ✅ PASS |
+| TC-3 | Partition exists, row count matches | SUCCESS returned immediately | ✅ PASS |
+| TC-4 | Partition exists, row count mismatches | Partition deleted, re-ingested (S1B-03) | ✅ PASS |
+| TC-5 | Source file absent | status=SKIPPED; no Parquet written (GAP-INV-02) | ✅ PASS |
+| TC-6 | Schema mismatch | status=FAILED; no Parquet written (S1B-schema) | ✅ PASS |
+| TC-7 | Audit columns present and non-null | _pipeline_run_id, _ingested_at, _source_file all non-null (INV-04) | ✅ PASS |
+| TC-8 | Source columns preserved exactly | All source values unchanged in Bronze (INV-08) | ✅ PASS |
+| TC-9 | Source file unchanged after ingestion | MD5 hash identical before and after call (INV-06) | ✅ PASS |
+| TC-10 | Bronze path convention correct | Path is `bronze/{entity}/date={date_str}/data.parquet` (INV-10) | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -46,9 +51,12 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | Control table initialized | pipeline/control.parquet created | ✅ PASS |
-| TC-2 | Watermark deferred (INV-02) | last_processed_date remains NULL in S2 | ✅ PASS |
-| TC-3 | Control table schema correct | last_processed_date, updated_at, updated_by_run_id present | ✅ PASS |
+| TC-1 | get_watermark — file absent | Returns None | ✅ PASS |
+| TC-2 | set_watermark then get_watermark | Returns set date | ✅ PASS |
+| TC-3 | get_next_date — no watermark | Returns None | ✅ PASS |
+| TC-4 | get_next_date — watermark 2024-01-05 | Returns "2024-01-06" | ✅ PASS |
+| TC-5 | Control table initialized | pipeline/control.parquet created | ✅ PASS |
+| TC-cold-start | get_watermark on fresh env → None returned | None returned cleanly; no exception raised | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
@@ -60,9 +68,12 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | End-to-end date range processing | All 6 dates processed sequentially | ✅ PASS |
-| TC-2 | Run log entries created | BRONZE entries for all dates + entities | ✅ PASS |
-| TC-3 | No watermark advancement | Watermark remains NULL after S2 | ✅ PASS |
+| TC-1 | Full run 2024-01-01 to 2024-01-06 | 6 transaction + 6 accounts + 1 transaction_codes Bronze partitions | ✅ PASS |
+| TC-2 | Run log entries written | run_log.parquet has rows for all models all 6 dates | ✅ PASS |
+| TC-3 | Ascending date order | Run log entries per date in ascending order (GAP-INV-01a) | ✅ PASS |
+| TC-4 | Within-date sequence | bronze_transaction_codes, bronze_accounts, bronze_transactions (GAP-INV-01b) | ✅ PASS |
+| TC-5 | Idempotent rerun | Bronze row counts unchanged on second run; new run_id in run_log | ✅ PASS |
+| TC-6 | S1B-02 | Row counts identical between first and second run for same date | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
