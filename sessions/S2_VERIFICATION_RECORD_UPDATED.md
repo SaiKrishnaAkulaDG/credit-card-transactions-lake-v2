@@ -12,10 +12,13 @@
 
 | Case | Scenario | Expected | Result |
 |------|----------|----------|--------|
-| TC-1 | First invocation creates pipeline/run_log.parquet | File created with 12-column schema | ✅ PASS |
-| TC-2 | Append-only semantics preserve existing rows | Read existing + append new + overwrite preserves history | ✅ PASS |
-| TC-3 | Schema constraints enforced (RL-04) | Bronze/Gold: records_rejected=NULL; SILVER: nullable | ✅ PASS |
-| TC-4 | Error messages stripped of paths (RL-05b) | Path separators removed from error_message | ✅ PASS |
+| TC-1 | First write — file absent | run_log.parquet created with 1 row | ✅ PASS |
+| TC-2 | Second write — file present | run_log.parquet has 2 rows; first row unchanged (RL-01b) | ✅ PASS |
+| TC-3 | SUCCESS record | error_message is null | ✅ PASS |
+| TC-4 | Bronze record | records_rejected is null (RL-04) | ✅ PASS |
+| TC-5 | Gold record | records_rejected is null (RL-04) | ✅ PASS |
+| TC-6 | FAILED record with path in message | Path separators stripped from error_message (RL-05b) | ✅ PASS |
+| TC-7 | get_run_log() — file absent | Returns empty DataFrame | ✅ PASS |
 
 **Challenge Verdict:** CLEAN
 
