@@ -24,9 +24,6 @@ models:
         tests:
           - not_null
 
-      - name: transactions_by_type
-        description: STRUCT containing count and total_signed_amount grouped by transaction_type. Enables transaction type analysis per day.
-
       - name: online_transactions
         description: Count of transactions conducted via the ONLINE channel for this date
         tests:

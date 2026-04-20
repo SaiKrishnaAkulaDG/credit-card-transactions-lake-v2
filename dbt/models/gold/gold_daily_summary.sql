@@ -37,13 +37,6 @@ select
   ft.transaction_date,
   count(*) as total_transactions,
   sum(ft._signed_amount) as total_signed_amount,
-  map_agg(
-    coalesce(ft.transaction_type, 'UNKNOWN'),
-    struct_pack(
-      count := count(*),
-      total_signed_amount := sum(ft._signed_amount)
-    )
-  ) as transactions_by_type,
   sum(case when ft.channel = 'ONLINE' then 1 else 0 end) as online_transactions,
   sum(case when ft.channel = 'IN_STORE' then 1 else 0 end) as instore_transactions,
   current_timestamp as _computed_at,

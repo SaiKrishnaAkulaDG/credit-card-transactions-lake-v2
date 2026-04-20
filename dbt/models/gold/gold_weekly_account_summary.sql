@@ -24,20 +24,22 @@
 
 with filtered_transactions as (
   select
-    account_id,
-    transaction_date,
-    transaction_type,
-    _signed_amount,
-    _pipeline_run_id
-  from read_parquet('/app/silver/transactions/date=*/data.parquet')
-  where _is_resolvable = true
+    st.account_id,
+    st.transaction_date,
+    stc.transaction_type,
+    st._signed_amount,
+    st._pipeline_run_id
+  from read_parquet('/app/silver/transactions/date=*/data.parquet') st
+  left join read_parquet('/app/silver/transaction_codes/data.parquet') stc
+    on st.transaction_code = stc.transaction_code
+  where st._is_resolvable = true
 ),
 
 weekly_grouped as (
   select
     account_id,
     date_trunc('week', cast(transaction_date as date)) as week_start_date,
-    dateadd('day', 6, date_trunc('week', cast(transaction_date as date))) as week_end_date,
+    date_add(date_trunc('week', cast(transaction_date as date)), interval 6 day) as week_end_date,
     sum(case when transaction_type = 'PURCHASE' then 1 else 0 end) as total_purchases,
     avg(case when transaction_type = 'PURCHASE' then _signed_amount else null end) as avg_purchase_amount,
     sum(case when transaction_type = 'PAYMENT' then _signed_amount else 0 end) as total_payments,
