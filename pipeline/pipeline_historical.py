@@ -296,24 +296,25 @@ def _promote_silver_for_date(run_id: str, date_str: str) -> bool:
     # Call silver_promoter - it enforces internal ordering
     result = promote_silver(date_str, run_id, "/app")
 
+    # Log result to run log (both SUCCESS and FAILED)
+    log_entry = {
+        "run_id": run_id,
+        "pipeline_type": "HISTORICAL",
+        "model_name": "silver_promotion",
+        "layer": "SILVER",
+        "status": result["status"],
+        "started_at": datetime.utcnow().isoformat(),
+        "completed_at": datetime.utcnow().isoformat(),
+        "records_processed": None,
+        "records_written": None,
+        "records_rejected": None,
+        "error_message": result.get("error_message") if result["status"] == "FAILED" else None,
+        "processed_date": date_str,
+    }
+    append_run_log([log_entry])
+
     if result["status"] == "FAILED":
         print(f"  Silver promotion FAILED: {result.get('error_message', 'Unknown error')}")
-        # Log failure to run log
-        log_entry = {
-            "run_id": run_id,
-            "pipeline_type": "HISTORICAL",
-            "model_name": "silver_promotion",
-            "layer": "SILVER",
-            "status": "FAILED",
-            "started_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat(),
-            "records_processed": None,
-            "records_written": None,
-            "records_rejected": None,
-            "error_message": result.get("error_message"),
-            "processed_date": date_str,
-        }
-        append_run_log([log_entry])
         return False
 
     print(f"  Silver promotion SUCCESS")
@@ -337,24 +338,25 @@ def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
     # Call gold_builder - returns dict with status, records_written, error_message
     result = promote_gold(date_str, run_id, "/app")
 
+    # Log result to run log (both SUCCESS and FAILED)
+    log_entry = {
+        "run_id": run_id,
+        "pipeline_type": "HISTORICAL",
+        "model_name": "gold_aggregation",
+        "layer": "GOLD",
+        "status": result["status"],
+        "started_at": datetime.utcnow().isoformat(),
+        "completed_at": datetime.utcnow().isoformat(),
+        "records_processed": None,
+        "records_written": None,
+        "records_rejected": None,
+        "error_message": result.get("error_message") if result["status"] == "FAILED" else None,
+        "processed_date": date_str,
+    }
+    append_run_log([log_entry])
+
     if result["status"] == "FAILED":
         print(f"  Gold aggregation FAILED: {result.get('error_message', 'Unknown error')}")
-        # Log failure to run log
-        log_entry = {
-            "run_id": run_id,
-            "pipeline_type": "HISTORICAL",
-            "model_name": "gold_aggregation",
-            "layer": "GOLD",
-            "status": "FAILED",
-            "started_at": datetime.utcnow().isoformat(),
-            "completed_at": datetime.utcnow().isoformat(),
-            "records_processed": None,
-            "records_written": None,
-            "records_rejected": None,
-            "error_message": result.get("error_message"),
-            "processed_date": date_str,
-        }
-        append_run_log([log_entry])
         return False
 
     print(f"  Gold aggregation SUCCESS")
