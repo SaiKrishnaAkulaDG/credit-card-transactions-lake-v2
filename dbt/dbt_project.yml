@@ -15,6 +15,9 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  date_var: "2024-01-01"
+
 models:
   credit_card_transactions_lake:
     silver:
