@@ -18,7 +18,7 @@
 {{
   config(
     materialized='external',
-    location='/app/gold/weekly_summary/data.parquet'
+    location='/app/gold/weekly_account_summary/data.parquet'
   )
 }}
 
