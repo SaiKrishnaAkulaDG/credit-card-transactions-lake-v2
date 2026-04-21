@@ -313,25 +313,49 @@ path = Path(SOURCE_DIR) / f"{entity}_{date_str}.csv"
 
 **File Modified:** `pipeline/pipeline_incremental.py` line 67
 
-### Part 2: S1B-02 Cross-Entry-Point Equivalence ⚠️ PARTIALLY TESTED
+### Part 2: S1B-02 Cross-Entry-Point Equivalence ⚠️ INVESTIGATION INCONCLUSIVE
 
 **Setup Completed:**
 1. ✅ Baseline recorded: Bronze=5, Silver=4, Gold: total_transactions=3
 2. ✅ Deleted 2024-01-01 partitions from Bronze/Silver
 3. ✅ Reset watermark to 2023-12-31
-4. ✅ Fixed source file detection bug
+4. ✅ Fixed source file detection bug in pipeline_incremental.py
 
-**Incremental Pipeline Execution:**
-- ✅ Watermark: 2023-12-31 (correct)
-- ✅ Processing: 2024-01-01 (correct)
-- ✅ Run ID generated: 72fc5617-2c4b-487b-be08-f3bc80ce19e1
-- ✅ Bronze loading: SUCCESS (5 records created for 2024-01-01)
-- ❌ Silver promotion: FAILED (dbt model error during promotion)
+**Incremental Pipeline Attempts (4 tries):**
 
-**Silver Error:**
-dbt run failed on silver_transactions with error truncated in log
+**Attempt 1:**
+- ✅ Watermark: 2023-12-31, Processing: 2024-01-01, Run ID: 72fc5617-2c4b-487b-be08-f3bc80ce19e1
+- ✅ Bronze loading: SUCCESS (5 records created)
+- ❌ Silver promotion: FAILED
 
-**Note:** The source file detection bug is now fixed, but S1B-02 validation encounters a separate dbt execution issue when trying to process 2024-01-01 from incremental context. This would require environment reset and full rerun to validate completely.
+**Attempt 2:**
+- ✅ Bronze loading: SUCCESS
+- ❌ Silver promotion: FAILED (same error)
+
+**Attempt 3:**
+- Created Silver directories: `/app/silver/{accounts, transactions, transaction_codes, quarantine}`
+- Verified silver_transaction_codes exists (4 records)
+- ❌ Silver promotion: FAILED (same error)
+
+**Attempt 4:**
+- Reset watermark and retried
+- ❌ Silver promotion: FAILED (persistent error)
+
+**Root Cause Analysis:**
+dbt template variable substitution issue in incremental context:
+```
+Error: IO Error: Cannot open file "appsilvertransactionsdate=2024-01-01data.parquet"
+```
+(Slashes removed by error sanitization, but path is malformed in dbt template resolution)
+
+**Hypothesis:**
+Silver promotion succeeds in historical context (where it's called correctly), but fails in incremental context. Likely cause: dbt variables not being passed or resolved correctly when called from pipeline_incremental.py → silver_promoter.promote_silver() → invoke_dbt_model().
+
+**Verification Status:**
+- S1B-02 cross-entry-point equivalence: **CANNOT BE VERIFIED** due to Silver promotion failure in incremental context
+- This is a pre-existing compatibility issue between incremental pipeline and Silver promotion, not a data problem
+
+**Note:** Part 1 (historical idempotency) is fully verified. Part 2 requires resolution of dbt variable passing issue in incremental context.
 
 ### Summary
 
