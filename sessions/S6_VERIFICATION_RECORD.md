@@ -191,12 +191,82 @@ TOTAL: 25 entries, all status=SUCCESS
 
 ---
 
+## Task 6.2 — No-Op Path Verification (2024-01-07)
+
+**Date Tested:** 2026-04-21  
+**Purpose:** Verify incremental pipeline correctly handles missing source file with no-op path (no data written, watermark unchanged, SKIPPED log entries)
+
+### Preconditions
+- ✅ Watermark = 2024-01-06
+- ✅ Source file `source/transactions_2024-01-07.csv` absent
+
+### Execution
+```bash
+docker compose run --rm pipeline python pipeline/pipeline_incremental.py
+```
+
+**Output:**
+```
+Watermark: 2024-01-06
+Processing: 2024-01-07
+No source file for 2024-01-07 - writing SKIPPED run log entries
+Watermark NOT advanced (no source file for 2024-01-07)
+Incremental pipeline completed (no-op)
+Exit code: 0
+```
+
+### Verification Results (All 6 Conditions PASS)
+
+| # | Condition | Expected | Actual | Status |
+|---|-----------|----------|--------|--------|
+| 1 | Exit code 0 (GAP-INV-02) | 0 | 0 | ✅ PASS |
+| 2 | Watermark unchanged (INV-02) | 2024-01-06 | 2024-01-06 | ✅ PASS |
+| 3 | SKIPPED entries for all 8 models (OQ-2, RL-01a) | 8 | 8 | ✅ PASS |
+| 4 | No Bronze 2024-01-07 directory created | Not exist | Not exist | ✅ PASS |
+| 5 | No Silver 2024-01-07 directory created | Not exist | Not exist | ✅ PASS |
+| 6 | No data layer contains SKIPPED run_id (INV-05b) | 0 records | 0 records | ✅ PASS |
+
+### Run Log Entries (SKIPPED for 2024-01-07)
+
+Run ID: 394b41e7-e79c-4583-bf54-9228cf3f17d4
+
+Models with SKIPPED status:
+1. bronze_transaction_codes — SKIPPED
+2. bronze_accounts — SKIPPED
+3. bronze_transactions — SKIPPED
+4. silver_transaction_codes — SKIPPED
+5. silver_accounts — SKIPPED
+6. silver_transactions — SKIPPED
+7. silver_quarantine — SKIPPED
+8. gold_aggregation — SKIPPED
+
+### Invariant Enforcement
+
+| Invariant | Enforcement | Result |
+|-----------|-------------|--------|
+| **GAP-INV-02** | No-op exits code 0 on missing source | ✅ PASS |
+| **INV-02** | Watermark NOT advanced on no-op | ✅ PASS (unchanged at 2024-01-06) |
+| **INV-05b** | SKIPPED run_id NOT in any data layer | ✅ PASS (no 2024-01-07 files) |
+| **OQ-2** | All 8 models produce SKIPPED entries | ✅ PASS |
+| **RL-01a** | Run log entries created for no-op | ✅ PASS (8 SKIPPED entries) |
+
+### Key Finding
+
+The no-op path is correctly implemented:
+- Source file absence detected before any data layer write
+- All 8 models recorded as SKIPPED (not missing from log)
+- Watermark remains at 2024-01-06 (no advancement)
+- No Parquet files created for 2024-01-07
+- Zero data integrity risk (SKIPPED run_id doesn't appear in any layer)
+
+---
+
 ## Outstanding S6 Tasks
 
-- [ ] Create verification/VERIFICATION_CHECKLIST.md (53 invariants × verification method)
-- [ ] Create verification/REGRESSION_SUITE.sh (portable bash commands)
-- [ ] Integration test with incremental pipeline (if incremental exists)
-- [ ] No-op path verification (missing source file)
+- [x] Create verification/VERIFICATION_CHECKLIST.md (53 invariants × verification method)
+- [x] Create verification/REGRESSION_SUITE.sh (portable bash commands)
+- [x] Integration test with incremental pipeline (if incremental exists)
+- [x] No-op path verification (missing source file)
 
 ---
 
