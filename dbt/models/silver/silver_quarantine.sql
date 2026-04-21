@@ -54,7 +54,7 @@ txn_invalid_amount as (
     select *
     from bronze_transactions
     where transaction_id not in (select coalesce(transaction_id, '') from txn_null_required_fields)
-        and (amount is not null and amount != '')
+        and amount is not null
         and (try_cast(amount as decimal) <= 0 or try_cast(amount as decimal) is null)
 ),
 
