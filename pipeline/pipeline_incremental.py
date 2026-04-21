@@ -64,7 +64,7 @@ def _source_file_exists(entity: str, date_str: str) -> bool:
     if entity == "transaction_codes":
         path = Path(SOURCE_DIR) / "transaction_codes.csv"
     else:
-        path = Path(SOURCE_DIR) / f"{entity}s_{date_str}.csv"
+        path = Path(SOURCE_DIR) / f"{entity}_{date_str}.csv"
     return path.exists()
 
 
