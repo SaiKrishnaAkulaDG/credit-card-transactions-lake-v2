@@ -151,33 +151,59 @@ def _load_bronze_for_date(run_id: str, date_str: str, tc_loaded: bool) -> tuple[
 
 
 def _promote_silver_for_date(run_id: str, date_str: str) -> bool:
-    """Promote Silver with enforced accounts→transactions ordering."""
+    """Promote Silver and log individual model entries."""
     sys.path.insert(0, PIPELINE_DIR)
     from silver_promoter import promote_silver
     from run_logger import append_run_log
 
     result = promote_silver(date_str, run_id, "/app")
 
-    if result["status"] == "FAILED":
-        # Log failure
+    # Log individual Silver models
+    models = ["silver_accounts", "silver_transactions", "silver_quarantine"]
+    log_entries = []
+
+    for model in models:
+        if result["status"] == "SUCCESS":
+            # Query metrics for successful models
+            try:
+                conn = duckdb.connect()
+                if model == "silver_accounts":
+                    records = conn.execute("SELECT COUNT(*) FROM read_parquet('/app/silver/accounts/data.parquet')").fetchone()[0]
+                elif model == "silver_transactions":
+                    records = conn.execute(f"SELECT COUNT(*) FROM read_parquet('/app/silver/transactions/date={date_str}/data.parquet')").fetchone()[0]
+                elif model == "silver_quarantine":
+                    records = conn.execute(f"SELECT COUNT(*) FROM read_parquet('/app/quarantine/data.parquet') WHERE transaction_date='{date_str}'").fetchone()[0]
+                    if records is None:
+                        records = 0
+                conn.close()
+            except:
+                records = None
+
+            status = "SUCCESS"
+            error_msg = None
+        else:
+            records = None
+            status = "FAILED"
+            error_msg = result.get("error_message")
+
         log_entry = {
             "run_id": run_id,
             "pipeline_type": "INCREMENTAL",
-            "model_name": "silver_promotion",
+            "model_name": model,
             "layer": "SILVER",
-            "status": "FAILED",
+            "status": status,
             "started_at": datetime.utcnow().isoformat(),
             "completed_at": datetime.utcnow().isoformat(),
             "records_processed": None,
-            "records_written": None,
+            "records_written": records if status == "SUCCESS" else None,
             "records_rejected": None,
-            "error_message": result.get("error_message"),
+            "error_message": error_msg,
             "processed_date": date_str,
         }
-        append_run_log([log_entry])
-        return False
+        log_entries.append(log_entry)
 
-    return True
+    append_run_log(log_entries)
+    return result["status"] == "SUCCESS"
 
 
 def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
@@ -188,26 +214,48 @@ def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
 
     result = promote_gold(date_str, run_id, "/app")
 
-    if result["status"] == "FAILED":
-        # Log failure
+    # Log individual Gold models
+    models = ["gold_daily_summary", "gold_weekly_account_summary"]
+    log_entries = []
+
+    for model in models:
+        if result["status"] == "SUCCESS":
+            # Query metrics for successful models
+            try:
+                conn = duckdb.connect()
+                if model == "gold_daily_summary":
+                    records = conn.execute("SELECT COUNT(*) FROM read_parquet('/app/gold/daily_summary/data.parquet')").fetchone()[0]
+                elif model == "gold_weekly_account_summary":
+                    records = conn.execute("SELECT COUNT(*) FROM read_parquet('/app/gold/weekly_summary/data.parquet')").fetchone()[0]
+                conn.close()
+            except:
+                records = None
+
+            status = "SUCCESS"
+            error_msg = None
+        else:
+            records = None
+            status = "FAILED"
+            error_msg = result.get("error_message")
+
         log_entry = {
             "run_id": run_id,
             "pipeline_type": "INCREMENTAL",
-            "model_name": "gold_aggregation",
+            "model_name": model,
             "layer": "GOLD",
-            "status": "FAILED",
+            "status": status,
             "started_at": datetime.utcnow().isoformat(),
             "completed_at": datetime.utcnow().isoformat(),
             "records_processed": None,
-            "records_written": None,
+            "records_written": records if status == "SUCCESS" else None,
             "records_rejected": None,
-            "error_message": result.get("error_message"),
+            "error_message": error_msg,
             "processed_date": date_str,
         }
-        append_run_log([log_entry])
-        return False
+        log_entries.append(log_entry)
 
-    return True
+    append_run_log(log_entries)
+    return result["status"] == "SUCCESS"
 
 
 def _validate_run_log_completeness(run_id: str) -> bool:
@@ -221,7 +269,7 @@ def _validate_run_log_completeness(run_id: str) -> bool:
         rows = conn.execute(
             f"""
             SELECT COUNT(*) as total,
-                   COUNTIF(status = 'SUCCESS') as success_count
+                   COUNT(*) FILTER (WHERE status = 'SUCCESS') as success_count
             FROM read_parquet('{run_log_path}')
             WHERE run_id = '{run_id}'
             """
