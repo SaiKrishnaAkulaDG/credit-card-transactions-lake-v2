@@ -85,7 +85,7 @@ def _validate_run_log_completeness(run_id: str) -> bool:
         rows = conn.execute(
             f"""
             SELECT COUNT(*) as total,
-                   COUNTIF(status = 'SUCCESS') as success_count
+                   COUNT(*) FILTER (WHERE status = 'SUCCESS') as success_count
             FROM read_parquet('{run_log_path}')
             WHERE run_id = '{run_id}'
             """
