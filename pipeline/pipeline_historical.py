@@ -286,39 +286,103 @@ def _promote_silver_for_date(run_id: str, date_str: str) -> bool:
       1. silver_accounts (must complete first for _is_resolvable correctness)
       2. silver_transactions (depends on silver_accounts)
       3. silver_quarantine (depends on transactions)
+
+    Log each model individually to run_log.
     """
     sys.path.insert(0, PIPELINE_DIR)
-    from silver_promoter import promote_silver
+    import subprocess
+    import json
     from run_logger import append_run_log
 
     print(f"  Promoting Silver for {date_str}...")
 
-    # Call silver_promoter - it enforces internal ordering
-    result = promote_silver(date_str, run_id, "/app")
+    silver_models = ["silver_accounts", "silver_transactions", "silver_quarantine"]
+    dbt_dir = "/app/dbt"
+    all_success = True
 
-    # Log result to run log (both SUCCESS and FAILED)
-    log_entry = {
-        "run_id": run_id,
-        "pipeline_type": "HISTORICAL",
-        "model_name": "silver_promotion",
-        "layer": "SILVER",
-        "status": result["status"],
-        "started_at": datetime.utcnow().isoformat(),
-        "completed_at": datetime.utcnow().isoformat(),
-        "records_processed": None,
-        "records_written": None,
-        "records_rejected": None,
-        "error_message": result.get("error_message") if result["status"] == "FAILED" else None,
-        "processed_date": date_str,
-    }
-    append_run_log([log_entry])
+    for model_name in silver_models:
+        # Run dbt model
+        cmd = [
+            "dbt", "run",
+            "--select", model_name,
+            "--project-dir", dbt_dir,
+            "--profiles-dir", dbt_dir,
+            "--vars", json.dumps({"date_var": date_str})
+        ]
 
-    if result["status"] == "FAILED":
-        print(f"  Silver promotion FAILED: {result.get('error_message', 'Unknown error')}")
-        return False
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            status = "SUCCESS" if result.returncode == 0 else "FAILED"
+            error_msg = None if result.returncode == 0 else (result.stdout + result.stderr).replace("/", "").replace("\\", "")
+        except Exception as e:
+            status = "FAILED"
+            error_msg = str(e)[:500]
 
-    print(f"  Silver promotion SUCCESS")
-    return True
+        # Query record counts if successful
+        records_processed = None
+        records_written = None
+        records_rejected = None
+        if status == "SUCCESS":
+            try:
+                conn = duckdb.connect()
+                bronze_tx_path = str(Path(BRONZE_DIR) / "transactions" / f"date={date_str}" / "data.parquet")
+                bronze_ac_path = str(Path(BRONZE_DIR) / "accounts" / f"date={date_str}" / "data.parquet")
+                silver_ac_path = str(Path(SILVER_DIR) / "accounts" / "data.parquet")
+                silver_tx_path = str(Path(SILVER_DIR) / "transactions" / f"date={date_str}" / "data.parquet")
+                quarantine_path = str(Path(SILVER_DIR) / ".." / "quarantine" / "data.parquet")
+
+                if model_name == "silver_accounts":
+                    if Path(bronze_ac_path).exists():
+                        records_processed = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{bronze_ac_path}')").fetchone()[0]
+                    if Path(silver_ac_path).exists():
+                        records_written = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{silver_ac_path}')").fetchone()[0]
+
+                elif model_name == "silver_transactions":
+                    if Path(bronze_tx_path).exists():
+                        records_processed = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{bronze_tx_path}')").fetchone()[0]
+                    if Path(silver_tx_path).exists():
+                        records_written = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{silver_tx_path}')").fetchone()[0]
+                    # records_rejected: those filtered out as unresolvable
+                    if records_processed and records_written:
+                        records_rejected = records_processed - records_written
+
+                elif model_name == "silver_quarantine":
+                    if Path(bronze_tx_path).exists():
+                        records_processed = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{bronze_tx_path}')").fetchone()[0]
+                    if Path(quarantine_path).exists():
+                        records_rejected = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{quarantine_path}')").fetchone()[0]
+
+                conn.close()
+            except Exception:
+                records_processed = None
+                records_written = None
+                records_rejected = None
+
+        # Log each model separately
+        log_entry = {
+            "run_id": run_id,
+            "pipeline_type": "HISTORICAL",
+            "model_name": model_name,
+            "layer": "SILVER",
+            "status": status,
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.utcnow().isoformat(),
+            "records_processed": records_processed,
+            "records_written": records_written,
+            "records_rejected": records_rejected,
+            "error_message": error_msg,
+            "processed_date": date_str,
+        }
+        append_run_log([log_entry])
+
+        if status == "FAILED":
+            print(f"  {model_name} FAILED: {error_msg}")
+            all_success = False
+            break
+
+    if all_success:
+        print(f"  Silver promotion SUCCESS")
+    return all_success
 
 
 def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
@@ -328,39 +392,90 @@ def _aggregate_gold_for_date(run_id: str, date_str: str) -> bool:
     Gold is computed as FULL REFRESH from current Silver.
     Not incremental - overwrites previous Gold files completely.
     This ensures aggregations are always consistent with latest Silver.
+
+    Log each model individually to run_log.
     """
     sys.path.insert(0, PIPELINE_DIR)
-    from gold_builder import promote_gold
+    import subprocess
+    import json
     from run_logger import append_run_log
 
     print(f"  Aggregating Gold for {date_str}...")
 
-    # Call gold_builder - returns dict with status, records_written, error_message
-    result = promote_gold(date_str, run_id, "/app")
+    gold_models = ["gold_daily_summary", "gold_weekly_account_summary"]
+    dbt_dir = "/app/dbt"
+    all_success = True
 
-    # Log result to run log (both SUCCESS and FAILED)
-    log_entry = {
-        "run_id": run_id,
-        "pipeline_type": "HISTORICAL",
-        "model_name": "gold_aggregation",
-        "layer": "GOLD",
-        "status": result["status"],
-        "started_at": datetime.utcnow().isoformat(),
-        "completed_at": datetime.utcnow().isoformat(),
-        "records_processed": None,
-        "records_written": None,
-        "records_rejected": None,
-        "error_message": result.get("error_message") if result["status"] == "FAILED" else None,
-        "processed_date": date_str,
-    }
-    append_run_log([log_entry])
+    for model_name in gold_models:
+        # Run dbt model
+        cmd = [
+            "dbt", "run",
+            "--select", model_name,
+            "--project-dir", dbt_dir,
+            "--profiles-dir", dbt_dir,
+            "--vars", json.dumps({"date_var": date_str})
+        ]
 
-    if result["status"] == "FAILED":
-        print(f"  Gold aggregation FAILED: {result.get('error_message', 'Unknown error')}")
-        return False
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            status = "SUCCESS" if result.returncode == 0 else "FAILED"
+            error_msg = None if result.returncode == 0 else (result.stdout + result.stderr).replace("/", "").replace("\\", "")
+        except Exception as e:
+            status = "FAILED"
+            error_msg = str(e)[:500]
 
-    print(f"  Gold aggregation SUCCESS")
-    return True
+        # Query record counts if successful
+        records_processed = None
+        records_written = None
+        if status == "SUCCESS":
+            try:
+                conn = duckdb.connect()
+                silver_tx_path = str(Path(SILVER_DIR) / "transactions" / f"date={date_str}" / "data.parquet")
+                gold_daily_path = str(Path(GOLD_DIR) / "daily_summary" / "data.parquet")
+                gold_weekly_path = str(Path(GOLD_DIR) / "weekly_summary" / "data.parquet")
+
+                # records_processed: count of resolvable Silver transactions for this date
+                if Path(silver_tx_path).exists():
+                    records_processed = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{silver_tx_path}') WHERE _is_resolvable = true").fetchone()[0]
+
+                if model_name == "gold_daily_summary":
+                    if Path(gold_daily_path).exists():
+                        records_written = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{gold_daily_path}')").fetchone()[0]
+
+                elif model_name == "gold_weekly_account_summary":
+                    if Path(gold_weekly_path).exists():
+                        records_written = conn.execute(f"SELECT COUNT(*) FROM read_parquet('{gold_weekly_path}')").fetchone()[0]
+
+                conn.close()
+            except Exception:
+                records_processed = None
+                records_written = None
+
+        # Log each model separately
+        log_entry = {
+            "run_id": run_id,
+            "pipeline_type": "HISTORICAL",
+            "model_name": model_name,
+            "layer": "GOLD",
+            "status": status,
+            "started_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.utcnow().isoformat(),
+            "records_processed": records_processed,
+            "records_written": records_written,
+            "records_rejected": None,
+            "error_message": error_msg,
+            "processed_date": date_str,
+        }
+        append_run_log([log_entry])
+
+        if status == "FAILED":
+            print(f"  {model_name} FAILED: {error_msg}")
+            all_success = False
+            break
+
+    if all_success:
+        print(f"  Gold aggregation SUCCESS")
+    return all_success
 
 
 def main():
