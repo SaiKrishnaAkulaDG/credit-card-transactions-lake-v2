@@ -115,6 +115,9 @@ def promote_silver_transaction_codes(run_id: str, app_dir: str) -> dict:
             "error_message": str | None
         }
     """
+    # Ensure silver_temp and output directories exist (Decision 4 staging)
+    Path(os.path.join(app_dir, "silver_temp", "transaction_codes")).mkdir(parents=True, exist_ok=True)
+
     result = invoke_dbt_model("silver_transaction_codes", app_dir)
 
     if result["status"] != "SUCCESS":
@@ -194,6 +197,46 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
             "records_written": None,
             "error_message": "Silver transaction_codes not populated",
         }
+
+    # Ensure silver_temp and output directories exist (Decision 4 staging)
+    Path(os.path.join(app_dir, "silver_temp", "accounts")).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(app_dir, "silver_temp", "transactions", f"date={date_str}")).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(app_dir, "silver_temp", "quarantine")).mkdir(parents=True, exist_ok=True)
+
+    # Ensure quarantine file exists (silver_transactions needs to read it for dedup)
+    quarantine_path = os.path.join(app_dir, "silver", "quarantine", "data.parquet")
+    if not os.path.exists(quarantine_path):
+        import duckdb
+        conn = duckdb.connect()
+        # Create empty quarantine table with schema matching silver_quarantine output
+        conn.execute("""
+            CREATE TABLE quarantine_schema AS
+            SELECT
+                CAST(NULL AS VARCHAR) as transaction_id,
+                CAST(NULL AS VARCHAR) as account_id,
+                CAST(NULL AS DATE) as transaction_date,
+                CAST(NULL AS DECIMAL) as amount,
+                CAST(NULL AS VARCHAR) as transaction_code,
+                CAST(NULL AS VARCHAR) as merchant_name,
+                CAST(NULL AS VARCHAR) as channel,
+                CAST(NULL AS VARCHAR) as customer_name,
+                CAST(NULL AS VARCHAR) as account_status,
+                CAST(NULL AS DECIMAL) as credit_limit,
+                CAST(NULL AS DECIMAL) as current_balance,
+                CAST(NULL AS DATE) as open_date,
+                CAST(NULL AS DATE) as billing_cycle_start,
+                CAST(NULL AS DATE) as billing_cycle_end,
+                CAST(NULL AS VARCHAR) as _pipeline_run_id,
+                CAST(NULL AS TIMESTAMP) as _ingested_at,
+                CAST(NULL AS VARCHAR) as _source_file,
+                CAST(NULL AS VARCHAR) as _rejection_reason,
+                CAST(NULL AS TIMESTAMP) as _rejected_at,
+                CAST(NULL AS VARCHAR) as record_type
+            WHERE FALSE
+        """)
+        Path(quarantine_path).parent.mkdir(parents=True, exist_ok=True)
+        conn.execute(f"COPY quarantine_schema TO '{quarantine_path}' (FORMAT PARQUET)")
+        conn.close()
 
     # Run Silver models in order, then atomically rename (Decision 4)
     models = ["silver_accounts", "silver_transactions", "silver_quarantine"]

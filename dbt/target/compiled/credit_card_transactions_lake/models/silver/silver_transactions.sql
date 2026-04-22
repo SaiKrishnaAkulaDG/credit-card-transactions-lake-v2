@@ -25,19 +25,19 @@
 
 
 with bronze_transactions as (
-    select * from read_parquet('/app/bronze/transactions/date=2024-01-06/data.parquet')
+    select * from read_parquet('/app/bronze/transactions/date=2024-01-01/data.parquet')
 ),
 
 silver_accounts as (
-    select distinct account_id from read_parquet('/app/silver/accounts/data.parquet')
+    select distinct account_id from read_parquet('/app/silver_temp/accounts/data.parquet')
 ),
 
 silver_transaction_codes as (
-    select transaction_code, debit_credit_indicator from read_parquet('/app/silver/transaction_codes/data.parquet')
+    select transaction_code, debit_credit_indicator from read_parquet('/app/silver_temp/transaction_codes/data.parquet')
 ),
 
 quarantine_transaction_ids as (
-    select distinct transaction_id from read_parquet('/app/quarantine/data.parquet')
+    select distinct transaction_id from read_parquet('/app/silver/quarantine/data.parquet')
     where record_type = 'TRANSACTION' and transaction_id is not null
 ),
 
