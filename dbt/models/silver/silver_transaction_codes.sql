@@ -4,7 +4,7 @@
 
 {{ config(
     materialized='external',
-    location='/app/silver/transaction_codes/data.parquet',
+    location='/app/silver_temp/transaction_codes/data.parquet',
     file_format='parquet'
 ) }}
 

@@ -159,7 +159,7 @@ import duckdb
 conn = duckdb.connect()
 bronze = conn.execute(\\\"SELECT COUNT(*) FROM read_parquet('/app/bronze/transactions/date=2024-01-01/data.parquet')\\\").fetchone()[0]
 silver = conn.execute(\\\"SELECT COUNT(*) FROM read_parquet('/app/silver/transactions/date=2024-01-01/data.parquet')\\\").fetchone()[0]
-quarantine = conn.execute(\\\"SELECT COUNT(*) FROM read_parquet('/app/quarantine/data.parquet') WHERE transaction_date='2024-01-01'\\\").fetchone()[0]
+quarantine = conn.execute(\\\"SELECT COUNT(*) FROM read_parquet('/app/silver/quarantine/data.parquet') WHERE transaction_date='2024-01-01'\\\").fetchone()[0]
 total = silver + quarantine
 assert total == bronze, f'Conservation failed: {silver} + {quarantine} != {bronze}'
 \""
@@ -173,7 +173,7 @@ for d in range(1, 7):
   bronze = conn.execute(f\\\"SELECT COUNT(*) FROM read_parquet('/app/bronze/transactions/date={date}/data.parquet')\\\").fetchone()[0]
   silver = conn.execute(f\\\"SELECT COUNT(*) FROM read_parquet('/app/silver/transactions/date={date}/data.parquet')\\\").fetchone()[0]
   try:
-    quarantine = conn.execute(f\\\"SELECT COUNT(*) FROM read_parquet('/app/quarantine/data.parquet') WHERE transaction_date='{date}'\\\").fetchone()[0]
+    quarantine = conn.execute(f\\\"SELECT COUNT(*) FROM read_parquet('/app/silver/quarantine/data.parquet') WHERE transaction_date='{date}'\\\").fetchone()[0]
   except:
     quarantine = 0
   total = silver + quarantine

@@ -5,7 +5,7 @@
 
 {{ config(
     materialized='external',
-    location='/app/silver/accounts/data.parquet',
+    location='/app/silver_temp/accounts/data.parquet',
     file_format='parquet'
 ) }}
 

@@ -24,7 +24,7 @@
 
 {{ config(
     materialized='external',
-    location='/app/silver/transactions/date={{ var("date_var", "2024-01-01") }}/data.parquet',
+    location='/app/silver_temp/transactions/date={{ var("date_var", "2024-01-01") }}/data.parquet',
     file_format='parquet'
 ) }}
 
@@ -33,15 +33,15 @@ with bronze_transactions as (
 ),
 
 silver_accounts as (
-    select distinct account_id from read_parquet('/app/silver/accounts/data.parquet')
+    select distinct account_id from read_parquet('/app/silver_temp/accounts/data.parquet')
 ),
 
 silver_transaction_codes as (
-    select transaction_code, debit_credit_indicator from read_parquet('/app/silver/transaction_codes/data.parquet')
+    select transaction_code, debit_credit_indicator from read_parquet('/app/silver_temp/transaction_codes/data.parquet')
 ),
 
 quarantine_transaction_ids as (
-    select distinct transaction_id from read_parquet('/app/quarantine/data.parquet')
+    select distinct transaction_id from read_parquet('/app/silver/quarantine/data.parquet')
     where record_type = 'TRANSACTION' and transaction_id is not null
 ),
 

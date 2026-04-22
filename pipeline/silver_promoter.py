@@ -102,7 +102,7 @@ def invoke_dbt_model(model_name: str, app_dir: str, variables: Optional[dict] = 
 
 def promote_silver_transaction_codes(run_id: str, app_dir: str) -> dict:
     """
-    Run silver_transaction_codes dbt model.
+    Run silver_transaction_codes dbt model and atomically rename to silver/ (Decision 4).
 
     Args:
         run_id: Pipeline run UUID
@@ -116,7 +116,44 @@ def promote_silver_transaction_codes(run_id: str, app_dir: str) -> dict:
         }
     """
     result = invoke_dbt_model("silver_transaction_codes", app_dir)
-    return result
+
+    if result["status"] != "SUCCESS":
+        return result
+
+    # Decision 4: Atomic rename from silver_temp to silver
+    src = os.path.join(app_dir, "silver_temp", "transaction_codes")
+    dst = os.path.join(app_dir, "silver", "transaction_codes")
+
+    try:
+        # Remove destination if exists (idempotency)
+        if os.path.exists(dst):
+            shutil.rmtree(dst)
+        # Atomic rename
+        os.rename(src, dst)
+        return {
+            "status": "SUCCESS",
+            "records_written": None,
+            "error_message": None,
+        }
+    except Exception as e:
+        return {
+            "status": "FAILED",
+            "records_written": None,
+            "error_message": f"Atomic rename failed: {str(e)[:500]}",
+        }
+
+
+def _atomic_rename_tree(src: str, dst: str) -> bool:
+    """Helper: Atomically rename directory with idempotency (remove existing dst first)."""
+    try:
+        if not os.path.exists(src):
+            return False
+        if os.path.exists(dst):
+            shutil.rmtree(dst)
+        os.rename(src, dst)
+        return True
+    except Exception:
+        return False
 
 
 def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
@@ -158,7 +195,7 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
             "error_message": "Silver transaction_codes not populated",
         }
 
-    # Run Silver models in order (atomic rename via dbt external materialization)
+    # Run Silver models in order, then atomically rename (Decision 4)
     models = ["silver_accounts", "silver_transactions", "silver_quarantine"]
     variables = {"date_var": date_str}
 
@@ -172,6 +209,38 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
                 "error_message": f"{model_name}: {result.get('error_message', 'unknown error')}",
             }
 
+        # Atomic rename from silver_temp to silver after successful dbt run
+        if model_name == "silver_accounts":
+            src = os.path.join(app_dir, "silver_temp", "accounts")
+            dst = os.path.join(app_dir, "silver", "accounts")
+            if not _atomic_rename_tree(src, dst):
+                return {
+                    "status": "FAILED",
+                    "records_written": None,
+                    "error_message": f"Atomic rename failed for {model_name}",
+                }
+
+        elif model_name == "silver_transactions":
+            # silver_transactions is partitioned by date; only rename this partition
+            src = os.path.join(app_dir, "silver_temp", "transactions", f"date={date_str}")
+            dst = os.path.join(app_dir, "silver", "transactions", f"date={date_str}")
+            if not _atomic_rename_tree(src, dst):
+                return {
+                    "status": "FAILED",
+                    "records_written": None,
+                    "error_message": f"Atomic rename failed for {model_name}",
+                }
+
+        elif model_name == "silver_quarantine":
+            src = os.path.join(app_dir, "silver_temp", "quarantine")
+            dst = os.path.join(app_dir, "silver", "quarantine")
+            if not _atomic_rename_tree(src, dst):
+                return {
+                    "status": "FAILED",
+                    "records_written": None,
+                    "error_message": f"Atomic rename failed for {model_name}",
+                }
+
     return {
         "status": "SUCCESS",
         "records_written": None,
@@ -179,6 +248,3 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
     }
 
 
-# Note: Decision 4 atomic rename (silver_temp → silver) is handled via dbt external materialization configuration.
-# dbt models write directly to silver/ locations with atomic Parquet writes.
-# Future enhancement: Configure dbt models to write to silver_temp/ with explicit os.rename() in this function for additional atomicity guarantees.

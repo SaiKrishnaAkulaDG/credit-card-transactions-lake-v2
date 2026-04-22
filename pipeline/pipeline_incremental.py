@@ -172,7 +172,7 @@ def _promote_silver_for_date(run_id: str, date_str: str) -> bool:
                 elif model == "silver_transactions":
                     records = conn.execute(f"SELECT COUNT(*) FROM read_parquet('/app/silver/transactions/date={date_str}/data.parquet')").fetchone()[0]
                 elif model == "silver_quarantine":
-                    records = conn.execute(f"SELECT COUNT(*) FROM read_parquet('/app/quarantine/data.parquet') WHERE transaction_date='{date_str}'").fetchone()[0]
+                    records = conn.execute(f"SELECT COUNT(*) FROM read_parquet('/app/silver/quarantine/data.parquet') WHERE transaction_date='{date_str}'").fetchone()[0]
                     if records is None:
                         records = 0
                 conn.close()
