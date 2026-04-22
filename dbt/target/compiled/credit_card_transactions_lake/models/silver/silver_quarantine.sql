@@ -23,7 +23,7 @@ bronze_accounts as (
 ),
 
 silver_transaction_codes as (
-    select distinct transaction_code from read_parquet('/app/silver/transaction_codes/data.parquet')
+    select distinct transaction_code from read_parquet('/app/silver_temp/transaction_codes/data.parquet')
 ),
 
 -- ===== TRANSACTION REJECTION RULES =====
