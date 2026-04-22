@@ -15,6 +15,10 @@ sessions/quarantine/
 # DuckDB catalog
 pipeline/dbt_catalog.duckdb
 
+# dbt runtime artifacts
+dbt/logs/
+dbt/target/
+
 # Python runtime artifacts
 __pycache__/
 *.py[cod]
