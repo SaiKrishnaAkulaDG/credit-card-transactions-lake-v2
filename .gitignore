@@ -2,7 +2,7 @@
 pipeline/*.parquet
 bronze/**/*.parquet
 silver/**/*.parquet
-silver_temp/**/*.parquet
+silver_temp/
 gold/**/*.parquet
 quarantine/**/*.parquet
 
@@ -44,6 +44,9 @@ MANIFEST
 *.swo
 *~
 .DS_Store
+
+# Claude Code local configuration
+.claude/
 
 # Keep all .gitkeep files tracked
 !**/.gitkeep
