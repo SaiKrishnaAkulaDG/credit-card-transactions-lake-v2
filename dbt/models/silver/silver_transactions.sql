@@ -24,7 +24,7 @@
 
 {{ config(
     materialized='external',
-    location='/app/silver_temp/transactions/date={{ var("date_var", "2024-01-01") }}/data.parquet',
+    location='/app/silver/transactions/date={{ var("date_var", "2024-01-01") }}/data.parquet',
     file_format='parquet'
 ) }}
 

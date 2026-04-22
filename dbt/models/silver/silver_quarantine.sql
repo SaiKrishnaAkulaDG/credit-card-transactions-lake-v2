@@ -8,7 +8,7 @@
 
 {{ config(
     materialized='external',
-    location='/app/silver_temp/quarantine/data.parquet',
+    location='/app/silver/quarantine/data.parquet',
     file_format='parquet'
 ) }}
 

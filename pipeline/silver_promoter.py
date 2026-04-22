@@ -53,6 +53,14 @@ def invoke_dbt_model(model_name: str, app_dir: str, variables: Optional[dict] = 
         }
     """
     dbt_dir = os.path.join(app_dir, "dbt")
+
+    # Ensure output directories exist in container context before dbt runs
+    try:
+        Path(os.path.join(app_dir, "silver")).mkdir(parents=True, exist_ok=True)
+        Path(os.path.join(app_dir, "silver_temp")).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
     cmd = ["dbt", "run", "--select", model_name, "--project-dir", dbt_dir, "--profiles-dir", dbt_dir]
 
     # Add variables if provided (as YAML)
@@ -68,6 +76,14 @@ def invoke_dbt_model(model_name: str, app_dir: str, variables: Optional[dict] = 
             text=True,
             timeout=300
         )
+
+        # Clean up DuckDB catalog to avoid locking on next run
+        catalog_path = os.path.join(app_dir, "dbt", "dbt_catalog.duckdb")
+        try:
+            if os.path.exists(catalog_path):
+                os.remove(catalog_path)
+        except Exception:
+            pass
 
         if result.returncode == 0:
             return {
@@ -102,7 +118,7 @@ def invoke_dbt_model(model_name: str, app_dir: str, variables: Optional[dict] = 
 
 def promote_silver_transaction_codes(run_id: str, app_dir: str) -> dict:
     """
-    Run silver_transaction_codes dbt model and atomically rename to silver/ (Decision 4).
+    Run silver_transaction_codes dbt model.
 
     Args:
         run_id: Pipeline run UUID
@@ -115,35 +131,8 @@ def promote_silver_transaction_codes(run_id: str, app_dir: str) -> dict:
             "error_message": str | None
         }
     """
-    # Ensure silver_temp and output directories exist (Decision 4 staging)
-    Path(os.path.join(app_dir, "silver_temp", "transaction_codes")).mkdir(parents=True, exist_ok=True)
-
     result = invoke_dbt_model("silver_transaction_codes", app_dir)
-
-    if result["status"] != "SUCCESS":
-        return result
-
-    # Decision 4: Atomic rename from silver_temp to silver
-    src = os.path.join(app_dir, "silver_temp", "transaction_codes")
-    dst = os.path.join(app_dir, "silver", "transaction_codes")
-
-    try:
-        # Remove destination if exists (idempotency)
-        if os.path.exists(dst):
-            shutil.rmtree(dst)
-        # Atomic rename
-        os.rename(src, dst)
-        return {
-            "status": "SUCCESS",
-            "records_written": None,
-            "error_message": None,
-        }
-    except Exception as e:
-        return {
-            "status": "FAILED",
-            "records_written": None,
-            "error_message": f"Atomic rename failed: {str(e)[:500]}",
-        }
+    return result
 
 
 def _atomic_rename_tree(src: str, dst: str) -> bool:
@@ -198,19 +187,7 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
             "error_message": "Silver transaction_codes not populated",
         }
 
-    # Ensure silver_temp and output directories exist (Decision 4 staging)
-    try:
-        Path(os.path.join(app_dir, "silver_temp", "accounts")).mkdir(parents=True, exist_ok=True)
-        Path(os.path.join(app_dir, "silver_temp", "transactions", f"date={date_str}")).mkdir(parents=True, exist_ok=True)
-        Path(os.path.join(app_dir, "silver_temp", "quarantine")).mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        return {
-            "status": "FAILED",
-            "records_written": None,
-            "error_message": f"Directory creation failed: {str(e)[:500]}",
-        }
-
-    # Run Silver models in order, then atomically rename (Decision 4)
+    # Run Silver models in order
     # quarantine first to ensure file exists for transactions to read during dedup
     models = ["silver_quarantine", "silver_accounts", "silver_transactions"]
     variables = {"date_var": date_str}
@@ -233,38 +210,6 @@ def promote_silver(date_str: str, run_id: str, app_dir: str) -> dict:
 
         print(f"  {model_name} SUCCESS")
         sys.stdout.flush()
-
-        # Atomic rename from silver_temp to silver after successful dbt run
-        if model_name == "silver_accounts":
-            src = os.path.join(app_dir, "silver_temp", "accounts")
-            dst = os.path.join(app_dir, "silver", "accounts")
-            if not _atomic_rename_tree(src, dst):
-                return {
-                    "status": "FAILED",
-                    "records_written": None,
-                    "error_message": f"Atomic rename failed for {model_name}",
-                }
-
-        elif model_name == "silver_transactions":
-            # silver_transactions is partitioned by date; only rename this partition
-            src = os.path.join(app_dir, "silver_temp", "transactions", f"date={date_str}")
-            dst = os.path.join(app_dir, "silver", "transactions", f"date={date_str}")
-            if not _atomic_rename_tree(src, dst):
-                return {
-                    "status": "FAILED",
-                    "records_written": None,
-                    "error_message": f"Atomic rename failed for {model_name}",
-                }
-
-        elif model_name == "silver_quarantine":
-            src = os.path.join(app_dir, "silver_temp", "quarantine")
-            dst = os.path.join(app_dir, "silver", "quarantine")
-            if not _atomic_rename_tree(src, dst):
-                return {
-                    "status": "FAILED",
-                    "records_written": None,
-                    "error_message": f"Atomic rename failed for {model_name}",
-                }
 
     return {
         "status": "SUCCESS",
