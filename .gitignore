@@ -6,6 +6,12 @@ silver_temp/
 gold/**/*.parquet
 quarantine/**/*.parquet
 
+# Session data layer outputs (auto-generated, never commit)
+sessions/bronze/
+sessions/silver/
+sessions/gold/
+sessions/quarantine/
+
 # DuckDB catalog
 pipeline/dbt_catalog.duckdb
 
